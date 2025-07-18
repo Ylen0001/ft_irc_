@@ -11,8 +11,8 @@
 /* ************************************************************************** */
 
 #include "../include/Client.hpp"
-#include "../include/Server.hpp"
 #include "../include/colors.hpp"
+#include <ostream>
 
 Client::Client() : _fd(), _registered(false), _hasPassword(false) {}
 
@@ -44,6 +44,7 @@ void Client::setHasPassword(bool val) {_hasPassword = val;}
 void Client::appendToBuffer(const std::string& data) {_buffer += data;}
 std::string& Client::getBuffer() {return _buffer;}
 
+//CLEAN code achieved, truely impressing
 std::string Client::getPrefix() const
 {
 	return ":" + getNickname() + "!" + getUsername() + "@" + getHostname();

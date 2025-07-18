@@ -23,22 +23,26 @@ class Client;
 
 class Channel
 {
+
 	private:
-		std::string _name; 				// Nom du channel
-		std::string _topic;
-		map<int, Client*> _clients;
-		Server* _server;
+		std::string _name; 				// Nom du channel <-- very informative
+		std::string _topic;				// Topic du channel
+		//NOTE: Typedef ? you could use the one you already have from Server.hpp
+		map<int, Client&> _clients;		//Client du channel
+		//You'd better use a reference here too
+		Server* _server;				//Serveur du channel, ou pas
+	
 	public:
 		Channel(const std::string& name, Server* server);
 		~Channel();
-		void addClient(Client* client);
-		void removeClient(int fd);
+		bool addClient(const Client& client);
+		void removeClient(const int& fd);
 		void broadcast(const std::string& msg, int excepted_fd = -1);
 		const std::string& getName() const;
 		Server* getServer() const;
-		void setTopic(string& topic);
+		void setTopic(const string& topic);
 		bool hasClient(int fd) const;
-		const map<int, Client*>& getChannelsClients() const;
+		const map<int, Client&>& getChannelsClients() const;
 };
 
 std::ostream& operator<<(std::ostream& out, const Channel& channel);
