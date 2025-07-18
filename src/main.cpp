@@ -6,7 +6,7 @@
 /*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/09 14:03:23 by ylenoel           #+#    #+#             */
-/*   Updated: 2025/07/16 17:10:58 by ylenoel          ###   ########.fr       */
+/*   Updated: 2025/07/18 13:25:16 by ylenoel          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -25,8 +25,6 @@ int main(int argc, char* argv[])
 	//Pretty cool convention
 	//If we don't need the first argument, we can increment the pointer and decrement the counter
 	++argv; --argc;
-	// if(argc != 3)
-	// 	exit(EXIT_FAILURE);
 
 	// 	Now we can check for the real number of arguments
 	if (argc != 2) {

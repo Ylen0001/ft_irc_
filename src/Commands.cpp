@@ -6,7 +6,7 @@
 /*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/15 14:33:42 by yoann             #+#    #+#             */
-/*   Updated: 2025/07/16 16:40:45 by ylenoel          ###   ########.fr       */
+/*   Updated: 2025/07/18 13:51:57 by ylenoel          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -32,7 +32,7 @@ bool Server::sendWelcome(const Client &client) {
 	std::ostringstream welcome;
 	welcome << ":" << getServerHostName() << " 001 " << client.getNickname()
 			<< " :Welcome to the Internet Relay Network " << client.getNickname()
-			<< "!" << client.getUsername() << "\r\n";
+			<< "!" << client.getUsername() << "@" << client.getHostname() << "\r\n";
 	return sendToClient(client, welcome.str());
 }
 
@@ -89,17 +89,10 @@ void Server::handlePASS(Client &client, std::string& arg)
 		sendToClient(client, buildCommandString("462 " + nick + " :You may not reregister"));
 		return;
 	}
-	if (pass.empty()) {
+	else if (pass.empty()) {
 		sendToClient(client, buildCommandString("461 " + nick + " PASS :Not enough parameters"));
 		return;
 	}
-	
-	//See the comment above
-	// if (client.getHasPassword()) {
-	// 	sendToClient(client, buildCommandString("462 " + nick + " :You may not reregister"));
-	// 	return;
-	// } else if (pass.empty()) {
-	// 	sendToClient(client, buildCommandString("461 " + nick + " PASS :Not enough parameters"));
 	if (pass == this->getPassword()) {
 		client.setHasPassword(true);
 		sendToClient(client, buildCommandString("NOTICE " + nick + " :Password accepted. You are now connected."));
@@ -116,6 +109,10 @@ void Server::handleUSER(Client &client, std::string& arg) {
 		sendToClient(client, buildErrorString(451, "You have not registered"));
 		return;
 	}
+	else if(client.isRegistered()){
+		sendToClient(client, buildErrorString(462, "* :You may not reregister"));
+		return;
+	}
 
 	stringstream ss(arg);
 	string username, hostname, servername, realname;
@@ -123,18 +120,23 @@ void Server::handleUSER(Client &client, std::string& arg) {
 	ss >> username >> hostname >> servername;
 
 	// Lire le reste de la ligne comme realname (peut contenir des espaces)
-	std::string rest;
-	std::getline(ss, rest);
+	// std::string rest;
+	// std::getline(ss, rest);
+
+	if (!arg.find_first_of(":")) 
+		realname = arg;
+	else 
+		realname = arg.substr(arg.find_first_of(":"));
 
 	// Pretty cool but pretty Cish, you'd better look at the find_first_of() function
 	// That is pretty much what you're looking for. Combine it with substr(find_first_of(":"))
 	// if (!find_first_of()) realname = rest
 	// else realname = rest.substr(find_first_of(":"))
 	// Can you get the c++ vibe ? can you handle it ?
-	if (!rest.empty() && rest[0] == ':')
-		rest.erase(0, 1);
+	// if (!rest.empty() && rest[0] == ':')
+	// 	rest.erase(0, 1);
 
-	realname = rest;
+	// realname = rest;
 
 	//Pretty cool usage of the early return pattern, bravo !
 	if (username.empty() || realname.empty()) {
@@ -146,7 +148,7 @@ void Server::handleUSER(Client &client, std::string& arg) {
 	client.setRealname(realname);
 
 	//Log function missing ? never call cout << "some shit" << endl; directly pleaseee..
-	std::cout << "USER set: " << username << ", REALNAME: " << realname << std::endl;
+	// std::cout << "USER set: " << username << ", REALNAME: " << realname << std::endl;
 
 	// Vérifie si l'utilisateur peut maintenant être considéré comme "registered"
 	if (!client.getNickname().empty()
@@ -155,7 +157,7 @@ void Server::handleUSER(Client &client, std::string& arg) {
 		&& !client.isRegistered())
 	{
 		client.setRegistration(true);
-		std::cout << "Client is now registered." << std::endl;
+		sendWelcome(client);
 	}
 	// And if not ? what do you do ?
 }

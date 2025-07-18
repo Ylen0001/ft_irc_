@@ -6,7 +6,7 @@
 /*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/10 15:33:22 by ylenoel           #+#    #+#             */
-/*   Updated: 2025/07/16 14:43:53 by ylenoel          ###   ########.fr       */
+/*   Updated: 2025/07/18 13:12:07 by ylenoel          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -22,6 +22,9 @@ Client::~Client() {}
 
 int Client::getFd() const {return _fd;}
 void Client::setFd(int fd) {_fd = fd;}
+
+const std::string& Client::getHostname() const {return _hostname;}
+void Client::setHostname(const std::string& hostname) {_hostname = hostname;}
 
 const std::string& Client::getNickname() const {return _nickname;}
 void Client::setNickname(const std::string& nickname) {_nickname = nickname;}
@@ -40,6 +43,11 @@ void Client::setHasPassword(bool val) {_hasPassword = val;}
 
 void Client::appendToBuffer(const std::string& data) {_buffer += data;}
 std::string& Client::getBuffer() {return _buffer;}
+
+std::string Client::getPrefix() const
+{
+	return ":" + getNickname() + "!" + getUsername() + "@" + getHostname();
+}
 
 std::ostream& operator<<(std::ostream& out, const Client& Client)
 {

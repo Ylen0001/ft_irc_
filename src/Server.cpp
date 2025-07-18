@@ -6,7 +6,7 @@
 /*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/09 15:45:29 by ylenoel           #+#    #+#             */
-/*   Updated: 2025/07/17 12:09:48 by ylenoel          ###   ########.fr       */
+/*   Updated: 2025/07/18 13:55:42 by ylenoel          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -98,13 +98,18 @@ void Server::acceptNewClient()
 	 	std::cerr << "Failed to accept client!" << std::endl;
 		return;
 	 }
-	 
-	 std::cout << "Nouveau client connecté, fd = " << client_fd 
-	 << ", IP: " << inet_ntoa(client_addr.sin_addr)
-	 << ", Port: " << ntohs(client_addr.sin_port) << std::endl;
+	
+	 std::string ip = inet_ntoa(client_addr.sin_addr);
+	std::cout << "Nouveau client connecté, fd = " << client_fd 
+	<< ", IP: " << inet_ntoa(client_addr.sin_addr)
+	<< ", Port: " << ntohs(client_addr.sin_port) << std::endl;
 	
 	setNonBlocking(client_fd);
 	_db_clients.insert(make_pair(client_fd, Client(client_fd))); // Dans une map il faut insert une pair. On ne peut pas insérer une variable seule.
+
+	Client &client = _db_clients.find(client_fd)->second; // On set hostname client avec l'IP client
+	client.setHostname(ip);
+	
 	_pollfds.push_back((pollfd){
 		.fd = client_fd,
 		.events = POLLIN,
@@ -233,25 +238,6 @@ handle la cmd présente dans le msg.
 
 */
 
-// void Server::handleMessage(Client& client, const std::string& msg)
-// {
-// 	stringstream ss(msg);
-	
-// 	string cmdName;
-// 	string arg;
-// 	ss >> cmdName;
-// 	ss >> arg;
-
-// 	const CmdMap::iterator result = _cmd_map.find(cmdName);
-// 	if (result == _cmd_map.end()) {
-// 		cout << "UNKNOWN COMMAND" << endl;
-// 		return ;
-// 	}
-
-// 	(this->*(result->second))(client, arg);
-// 	// (this->*fn)(client);
-// }
-
 void Server::handleMessage(Client& client, const std::string& msg)
 {
 	std::stringstream ss(msg);
@@ -270,8 +256,13 @@ void Server::handleMessage(Client& client, const std::string& msg)
 		arg = "";
 
 	const CmdMap::iterator result = _cmd_map.find(cmdName);
+	cout << cmdName << endl;
 	if (result == _cmd_map.end()) {
-		std::cout << "UNKNOWN COMMAND" << std::endl;
+			sendToClient(client, buildErrorString(421, cmdName + " :Unknown command\r\n"));
+			return;
+	}
+	else if(!client.getHasPassword() && cmdName != "PASS"){
+		sendToClient(client, buildErrorString(451, "* :You have not registered"));
 		return;
 	}
 

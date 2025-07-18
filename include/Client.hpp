@@ -6,7 +6,7 @@
 /*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/10 15:29:15 by ylenoel           #+#    #+#             */
-/*   Updated: 2025/07/16 14:32:52 by ylenoel          ###   ########.fr       */
+/*   Updated: 2025/07/18 13:10:41 by ylenoel          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -22,6 +22,7 @@ class Client
 		std::string _nickname;
 		std::string _username;
 		std::string _realname;
+		std::string _hostname;
 		std::string _buffer; // Pour accumuler les messages partiels
 		bool _registered;
 		bool _hasPassword;
@@ -36,6 +37,9 @@ class Client
 	int getFd() const;
 	void setFd(int fd);
 
+	void setHostname(const std::string& hostname);
+	const std::string& getHostname() const;
+	
 	const std::string& getNickname() const;
 	void setNickname(const std::string& nickname);
 
@@ -53,6 +57,8 @@ class Client
 
 	void appendToBuffer(const std::string& data);
 	std::string& getBuffer();
+
+	std::string getPrefix() const;
 };
 
 std::ostream& operator<<(std::ostream& out, const Client& Client);
