@@ -2,7 +2,7 @@ NAME = ircserv
 CPP = c++
 RM = rm -rf
 CPPFLAGS = -Wall -Wextra -Werror -std=c++98 -g3
-SRC = main.cpp Server.cpp Client.cpp Commands.cpp
+SRC = main.cpp Server.cpp Client.cpp Commands.cpp Channel.cpp
 OBJ = $(addprefix $(OBJ_DIR)/, $(notdir $(SRC:.cpp=.o)))
 SRC_DIR = src
 OBJ_DIR = obj

@@ -24,3 +24,25 @@ Notion interessantes abordees : getter de map/vector.
 
 - Nickname's already used case
 - Passage en mode non bloquant pour les sockets serveur/clients ---> cf Mode Bloquant/Non-bloquant et Multiplexage de poll() dans README.md
+- Ajout de _hostname (adresse IP client) dans la classe Client + getter/Setter
+- Ajout de la méthode Client::getPrefix() pour le formatage des messages clients lorsqu'ils sont redispatché à d'autres clients.
+
+18/06 :
+
+- Création de la classe Channel
+- Elle contient une map int fd/Client* comme db_clients, ce sera important de bien faire attention à enlever le client des channels concerné lorsqu'il se déconnecte/quit. Sinon les pointeurs seront nulls, et ça va poser des problèmes.
+- Ajout d'une map string/Channel pour lister les channels dans Server.
+- Construction de handleJOIN --> Bloc important
+  - 1 - Vérifier si le client est registered.
+  - 2 - Vérifier si l'arg est vide où si le format post cmd est bon.
+  - 3 - Vérifier que le nom du Channel est valide "#" avant le nom.
+  - 4 - Récupérer où créer le Channel.
+  - 5 - Ajouter le client au Channel.
+  - 6 - Notifier les clients du channel
+  - 7 - Envoyer le topic/liste des users (À IMPLËMENTER)
+- Méthode de debug pour afficher les channels (On en a chié putain)
+  - Surcharge d'opérateur pour Channel
+  - Getter pour la map _clients de Channel
+  - Méthode d'affichage des channels dans Server
+- Méthode Server::RemoveClientFromAllChannels
+- Suppression d'un channel si plus aucun clients connectés.

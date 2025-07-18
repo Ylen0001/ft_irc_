@@ -6,7 +6,7 @@
 /*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/09 15:28:05 by ylenoel           #+#    #+#             */
-/*   Updated: 2025/07/17 12:08:27 by ylenoel          ###   ########.fr       */
+/*   Updated: 2025/07/18 17:33:47 by ylenoel          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -32,6 +32,7 @@
 #include <cerrno>
 #include <csignal>
 #include <fcntl.h>
+#include "Channel.hpp"
 
 extern volatile sig_atomic_t g_running;
 using namespace std; // Plus besoin de faire std::map, on peut écrire map direct.
@@ -44,6 +45,7 @@ class Server
 	// Aliases 
 	#define ClientMap std::map<int, Client> 
 	#define CmdMap std::map<std::string, CmdFn>  
+	#define ChannelMap std::map<std::string, Channel>
 
 	/* Foncteur : Objet qui agît comme une fonction.
 	Ce foncteur = prédicat pour find_if dans remove_clients. 
@@ -78,10 +80,14 @@ class Server
 		void handleNICK(Client &client, std::string& arg);
 		void handleUSER(Client &client, std::string& arg);
 		void handlePASS(Client &client, std::string& arg);
+		void handleQUIT(Client &client, std::string& arg);
+		void handleJOIN(Client &client, std::string& arg);
 	
 		std::vector<struct pollfd> _pollfds;
 		ClientMap _db_clients; // Liste des clients connectés.
-		CmdMap _cmd_map;
+		CmdMap _cmd_map;		// Liste des commandes + ptr sur fonctions handleCMDS
+		ChannelMap _channels; // Liste des channels
+		
 
 		void setupSocket();
 		void listen();
@@ -92,12 +98,11 @@ class Server
 		void removeClient(int fd);
 		void handleMessage(Client& client, const std::string& msg);
 		ClientMap::iterator getClientByFd(const int fd);
-		bool sendToClient(const Client& client, const std::string& msg);
 		bool isNicknameTaken(const std::string& nickname) const;
 		void setNonBlocking(int fd);
 		
-	public:
-
+		public:
+		
 		Server(int port, string password);
 		~Server();
 		void run();
@@ -105,9 +110,13 @@ class Server
 		string getServerHostName() const;
 		size_t getClientCount() const;
 		string getPassword() const;
+		bool sendToClient(const Client& client, const std::string& msg);
 		const std::vector<pollfd>& getPollFds() const;
 		const std::map<int, Client>& getClients() const;
+		const ChannelMap getChannels() const;
 		void printConnectedClients(const Server& server);
+		void printConnectedChannels(const Server& server);
+		void removeClientFromAllChannels(int fd);
 };
 
 std::ostream& operator<<(std::ostream& out, const Server& Server);

@@ -6,7 +6,7 @@
 /*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/09 15:45:29 by ylenoel           #+#    #+#             */
-/*   Updated: 2025/07/18 13:55:42 by ylenoel          ###   ########.fr       */
+/*   Updated: 2025/07/18 17:36:22 by ylenoel          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -21,10 +21,10 @@ Server::Server(int port, string password) : _serverHostName("Server ft_irc"), _p
 	_cmd_map["NICK"] = &Server::handleNICK;
 	_cmd_map["USER"] = &Server::handleUSER;
 	_cmd_map["PASS"] = &Server::handlePASS;
+	_cmd_map["QUIT"] = &Server::handleQUIT;
+	_cmd_map["JOIN"] = &Server::handleJOIN;
 	// _cmd_map["PING"] = &Server::handlePING;
 	// _cmd_map["PONG"] = &Server::handlePONG;
-	// _cmd_map["QUIT"] = &Server::handleQUIT;
-	// _cmd_map["JOIN"] = &Server::handleJOIN;
 	// _cmd_map["PART"] = &Server::handlePART;
 	// _cmd_map["PRIVMSG"] = &Server::handlePRIVMSG;
 	// _cmd_map["NOTICE"] = &Server::handleNOTICE;
@@ -178,6 +178,7 @@ void Server::run()
 			}
 			_pollfds[i].revents = 0;
 			printConnectedClients(*this);
+			printConnectedChannels(*this);
 			cout << *this << endl;
 		}
 	}
@@ -223,11 +224,33 @@ ClientMap::iterator Server::getClientByFd(const int fd) {
 
 void Server::removeClient(int fd)
 {
+	removeClientFromAllChannels(fd);
 	_db_clients.erase(fd);
 	_pollfds.erase(find_if(_pollfds.begin(), _pollfds.end(), Server::MatchFd(fd)));
 	/* Ici, on fait appel au foncteur MatchFd(). On crée une struct MatchFd, et 
 	on appelle directement sa fonction membre qui compare son fd, avec celui envoyé par find_if. */
 	close(fd);
+}
+
+void Server::removeClientFromAllChannels(int fd)
+{
+	for (ChannelMap::iterator it = _channels.begin(); it != _channels.end(); ) {
+		Channel& channel = it->second;
+
+		// S'il trouve un client avec ce fd, on le supprime du channel
+		if (channel.hasClient(fd)) {
+			channel.removeClient(fd);
+		}
+
+		// Supprimer le channel s'il est désormais vide
+		if (channel.getChannelsClients().empty())
+		{
+			ChannelMap::iterator toErase = it++;
+			_channels.erase(toErase);
+		}
+		else
+			++it;
+	}
 }
 
 /* Là on est sur un gros morceau. 
@@ -296,6 +319,8 @@ const map<int, Client>& Server::getClients() const {return _db_clients;}
 
 string Server::getServerHostName() const {return _serverHostName;}
 
+const ChannelMap Server::getChannels() const {return _channels;}
+
 
 /*																========= DEBUG =========																							*/
 
@@ -309,6 +334,19 @@ void Server::printConnectedClients(const Server& server)
 	{
 		cout << C_QUARTZ"FD: " << it->first << "\n";
 		cout << C_QUARTZ << it->second << C_RESET << endl;
+	}
+}
+
+void Server::printConnectedChannels(const Server& server)
+{
+	const ChannelMap channels = server.getChannels();
+
+	cout << C_WARM_ORANGE"=== Created Channels (" << channels.size() << ") ===" C_RESET << endl;
+	
+	for(ChannelMap::const_iterator it = channels.begin(); it != channels.end(); ++it)
+	{
+		cout << C_WARM_ORANGE"Name: " << it->first << "\n";
+		cout << C_WARM_ORANGE << it->second << C_RESET << endl;
 	}
 }
 

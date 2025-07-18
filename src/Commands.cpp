@@ -6,7 +6,7 @@
 /*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/15 14:33:42 by yoann             #+#    #+#             */
-/*   Updated: 2025/07/18 13:51:57 by ylenoel          ###   ########.fr       */
+/*   Updated: 2025/07/18 17:37:31 by ylenoel          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -17,7 +17,7 @@
 //duplicating the code in each command handler
 string Server::buildCommandString(const string& message) {
 	std::ostringstream oss;
-	oss << ":" << getServerHostName() << message << "\r\n";
+	oss << ":" << getServerHostName() << " " << message << "\r\n";
 	return oss.str();
 }
 
@@ -35,7 +35,6 @@ bool Server::sendWelcome(const Client &client) {
 			<< "!" << client.getUsername() << "@" << client.getHostname() << "\r\n";
 	return sendToClient(client, welcome.str());
 }
-
 
 void Server::handleNICK(Client &client, std::string &arg)
 {
@@ -70,6 +69,17 @@ void Server::handleNICK(Client &client, std::string &arg)
 	}
 }
 
+void Server::handleQUIT(Client &client, std::string& arg)
+{
+	(void)client;
+	(void)arg;
+	return;
+	// string quitMsg = arg.empty() ? "Client Quit" : arg;
+	// if(!quitMsg.empty() && quitMsg[0] == ':')
+	// 	quitMsg = quitMsg.substr(1);
+	
+	// string msg = ":" + client.get
+}
 
 void Server::handlePASS(Client &client, std::string& arg)
 {
@@ -119,26 +129,12 @@ void Server::handleUSER(Client &client, std::string& arg) {
 	//This is why we prefer stringstream over string when extracting multiple words
 	ss >> username >> hostname >> servername;
 
-	// Lire le reste de la ligne comme realname (peut contenir des espaces)
-	// std::string rest;
-	// std::getline(ss, rest);
 
 	if (!arg.find_first_of(":")) 
 		realname = arg;
 	else 
 		realname = arg.substr(arg.find_first_of(":"));
-
-	// Pretty cool but pretty Cish, you'd better look at the find_first_of() function
-	// That is pretty much what you're looking for. Combine it with substr(find_first_of(":"))
-	// if (!find_first_of()) realname = rest
-	// else realname = rest.substr(find_first_of(":"))
-	// Can you get the c++ vibe ? can you handle it ?
-	// if (!rest.empty() && rest[0] == ':')
-	// 	rest.erase(0, 1);
-
-	// realname = rest;
-
-	//Pretty cool usage of the early return pattern, bravo !
+		
 	if (username.empty() || realname.empty()) {
 		sendToClient(client, "461 USER :Not enough parameters\r\n");
 		return;
@@ -146,9 +142,6 @@ void Server::handleUSER(Client &client, std::string& arg) {
 
 	client.setUsername(username);
 	client.setRealname(realname);
-
-	//Log function missing ? never call cout << "some shit" << endl; directly pleaseee..
-	// std::cout << "USER set: " << username << ", REALNAME: " << realname << std::endl;
 
 	// Vérifie si l'utilisateur peut maintenant être considéré comme "registered"
 	if (!client.getNickname().empty()
@@ -160,4 +153,48 @@ void Server::handleUSER(Client &client, std::string& arg) {
 		sendWelcome(client);
 	}
 	// And if not ? what do you do ?
+}
+
+void Server::handleJOIN(Client& client, std::string& arg)
+{
+	if(!client.isRegistered()){
+		sendToClient(client, buildErrorString(451, " JOIN :You have not registered"));
+		return;
+	}
+
+	if(arg.empty()){
+		sendToClient(client, buildErrorString(461, " JOIN :Not enough parameters"));
+		return;
+	}
+	
+	if(arg[0] != '#'){
+		sendToClient(client, buildErrorString(476, ":Invalid channel name"));
+		return;
+	}
+	
+	// 4. Récupérer ou créer le channel
+	std::map<std::string, Channel>::iterator it = _channels.find(arg);
+	if (it == _channels.end()) {
+		// Channel inexistant, on le crée
+		_channels.insert(std::make_pair(arg, Channel(arg, this)));
+		it = _channels.find(arg); // On récupère l'emplacement du nouveau Channel sur it.
+	}
+
+	Channel &channel = it->second; // Raccourci pour une référence sur le channel pointé par it->second dans la map
+	
+	// 5. Ajouter le client au channel
+	if (channel.hasClient(client.getFd())) {
+		// Il est déjà dans le channel, rien à faire
+		return;
+	}
+
+	channel.addClient(&client);
+
+	// 6. Notifier tous les clients du channel
+	std::string joinMsg = ":" + client.getPrefix() + " JOIN " + arg + "\r\n";
+	channel.broadcast(joinMsg);
+
+	// 7. Envoyer le topic et la liste des utilisateurs
+	// (Tu peux l’ajouter plus tard si pas encore implémenté)
+		
 }
