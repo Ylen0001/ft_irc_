@@ -12,6 +12,8 @@
 
 #include "../include/Server.hpp"
 #include <algorithm>
+#include <sstream>
+#include <sys/socket.h>
 
 //Function to generate the command string rather than 
 //duplicating the code in each command handler
@@ -144,11 +146,24 @@ void Server::handleUSER(Client &client, std::string& arg) {
 	client.setRealname(realname);
 
 	// Vérifie si l'utilisateur peut maintenant être considéré comme "registered"
-	if (!client.getNickname().empty()
-		&& !client.getUsername().empty()
-		&& !client.getRealname().empty()
-		&& !client.isRegistered())
-	{
+	// NOTE: You could follow the below convention, clearer IMO
+	// if (!client.getNickname().empty()
+	// 	&& !client.getUsername().empty()
+	// 	&& !client.getRealname().empty()
+	// 	&& !client.isRegistered())
+	// {
+	// 	client.setRegistration(true);
+	// 	sendWelcome(client);
+	// }
+
+	//NOTE: Conditions are aligned
+	if 
+	(
+		!client.getNickname().empty() &&
+		!client.getUsername().empty() &&
+		!client.getRealname().empty() &&
+		!client.isRegistered()
+	) {
 		client.setRegistration(true);
 		sendWelcome(client);
 	}
@@ -166,29 +181,46 @@ void Server::handleJOIN(Client& client, std::string& arg)
 		sendToClient(client, buildErrorString(461, " JOIN :Not enough parameters"));
 		return;
 	}
+	//TODO: You're missing the arg malformation check.
+	//If I send :
+	//JOIN #je suis beau
+	//you'll create the channel 'je suis beau'
+	//you should not, ever, never !
+	//See the list of authorized characters in the IRC norm, you must implement the check
 	
+	//HACK: arg[0] check is insane
+	//It segfaults if the command is not well formated using netcat
+	//as previously mentioned, we, as cpp users, enforce cpp function usage, such as
+	//you name it, you know it, find_first_of :)
+	//if (!(find_first_of(arg, "#") == 0)) 
+	//	erroHandling...
 	if(arg[0] != '#'){
 		sendToClient(client, buildErrorString(476, ":Invalid channel name"));
 		return;
 	}
 	
 	// 4. Récupérer ou créer le channel
-	std::map<std::string, Channel>::iterator it = _channels.find(arg);
+	//HACK: You defined ChanelMap, use it
+	// std::map<std::string, Channel>::iterator it = _channels.find(arg);
+	ChannelMap::iterator it = _channels.find(arg);
 	if (it == _channels.end()) {
 		// Channel inexistant, on le crée
-		_channels.insert(std::make_pair(arg, Channel(arg, this)));
+		_channels.insert(make_pair(arg, Channel(arg, this)));
 		it = _channels.find(arg); // On récupère l'emplacement du nouveau Channel sur it.
 	}
 
 	Channel &channel = it->second; // Raccourci pour une référence sur le channel pointé par it->second dans la map
 	
-	// 5. Ajouter le client au channel
-	if (channel.hasClient(client.getFd())) {
-		// Il est déjà dans le channel, rien à faire
-		return;
-	}
+	//INFO: This logic is unnecessary and should be part of Channel.addClient
+	// // 5. Ajouter le client au channel
+	// if (channel.hasClient(client.getFd())) {
+	// 	// Il est déjà dans le channel, rien à faire
+	// 	return;
+	// }
 
-	channel.addClient(&client);
+	//NOTE: If false, the client wasn't added (already in)
+	if (channel.addClient(client) == false)
+		return ;
 
 	// 6. Notifier tous les clients du channel
 	std::string joinMsg = ":" + client.getPrefix() + " JOIN " + arg + "\r\n";

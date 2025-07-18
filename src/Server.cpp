@@ -13,6 +13,7 @@
 #include "../include/Server.hpp"
 #include "../include/Client.hpp"
 #include "../include/colors.hpp"
+#include <sstream>
 
 Server::Server(int port, string password) : _serverHostName("Server ft_irc"), _port(port), _password(password), _db_clients()
 {
@@ -32,6 +33,7 @@ Server::Server(int port, string password) : _serverHostName("Server ft_irc"), _p
 	// _cmd_map["TOPIC"] = &Server::handleTOPIC;
 	// _cmd_map["KICK"] = &Server::handleKICK;
 	
+
 }
 
 Server::~Server()
@@ -261,6 +263,13 @@ handle la cmd présente dans le msg.
 
 */
 
+//TODO: You must handle multiline messages, not all IRC client and not all irssi versions send the commands 
+//in multiple parts, example below: 
+// PASS randompassword123
+// NICK randomNick42
+// USER randomUser 0 * :Random User
+// if you copy paste this example as a unique string, it should work, currently it throws an exception
+// that you don't catch
 void Server::handleMessage(Client& client, const std::string& msg)
 {
 	std::stringstream ss(msg);

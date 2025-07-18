@@ -25,14 +25,12 @@
 #include <arpa/inet.h>
 #include <cstring>
 #include <poll.h>
-#include <algorithm>
-#include <Client.hpp>
-#include <sstream>
 #include <map>
 #include <cerrno>
 #include <csignal>
 #include <fcntl.h>
 #include "Channel.hpp"
+#include "Client.hpp"
 
 extern volatile sig_atomic_t g_running;
 using namespace std; // Plus besoin de faire std::map, on peut écrire map direct.
@@ -43,6 +41,10 @@ class Server
 	typedef void (Server::*CmdFn)(Client &client, std::string& arg); 
 
 	// Aliases 
+	// TODO: Think about better typing, what could be const ? what could be a ref ?
+	// Make these types 'global' by using a seperate header named Types.h
+	// in bigger projects, if you have types for each class, you'd follow the following convention:
+	// Class.types.h <-- if this is constant, you know where to look for
 	#define ClientMap std::map<int, Client> 
 	#define CmdMap std::map<std::string, CmdFn>  
 	#define ChannelMap std::map<std::string, Channel>
