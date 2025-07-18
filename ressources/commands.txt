@@ -1,0 +1,24 @@
+NICK : Définit (ou change) le pseudonyme du client
+
+USER : Fournit le nom d'utilisateurs, le vrai nom, etc.
+(requis pour s'enregistrer).
+
+JOIN : Rejoindre un ou plusieurs canaux IRC.
+
+PART : Quitter un canal.
+
+PRIVMSG : Envoyer un message privé à un utilisateur ou 
+un canal.
+
+QUIT : Déconnecter le client.
+
+PING : Gérer la connectivité (serveur envoie un PING, client
+répond avec PONG).
+
+PONG : Réponse au PING (pour garder la connexion active).
+
+MODE (optionnel) : Gérer les modes utilisateurs/canal.
+
+TOPIC (optionnel) : Lire ou définir le sujet d'un canal.
+
+WHO, NAMES, LIST (optionnel) : Infos sur les utilisateurs/canaux
