@@ -46,3 +46,9 @@ Notion interessantes abordees : getter de map/vector.
   - Méthode d'affichage des channels dans Server
 - Méthode Server::RemoveClientFromAllChannels
 - Suppression d'un channel si plus aucun clients connectés.
+
+19/06 :
+
+- RemoveAllClientsFromChannels() 
+- HandlePART() 
+- HandleQUIT() 

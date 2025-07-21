@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   Commands.cpp                                       :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
+/*   By: yoann <yoann@student.42.fr>                +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/15 14:33:42 by yoann             #+#    #+#             */
-/*   Updated: 2025/07/18 17:37:31 by ylenoel          ###   ########.fr       */
+/*   Updated: 2025/07/21 19:08:09 by yoann            ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -69,16 +69,96 @@ void Server::handleNICK(Client &client, std::string &arg)
 	}
 }
 
-void Server::handleQUIT(Client &client, std::string& arg)
+void Server::handleQUIT(Client& client, std::string& arg)
 {
-	(void)client;
-	(void)arg;
-	return;
-	// string quitMsg = arg.empty() ? "Client Quit" : arg;
-	// if(!quitMsg.empty() && quitMsg[0] == ':')
-	// 	quitMsg = quitMsg.substr(1);
-	
-	// string msg = ":" + client.get
+    if (!client.isRegistered()) {
+        sendToClient(client, buildErrorString(451, " QUIT :You have not registered"));
+        return;
+    }
+
+    // Message de départ par défaut si absent
+    std::string quitMsg = "Client Quit";
+    if (!arg.empty()) {
+        // arg commence souvent par ':', on enlève le ':' si présent
+        if (arg[0] == ':')
+            quitMsg = arg.substr(1);
+        else
+            quitMsg = arg;
+    }
+
+    // Construire le message QUIT à envoyer aux autres clients dans les mêmes channels
+    std::string quitNotice = ":" + client.getPrefix() + " QUIT :" + quitMsg + "\r\n";
+
+    // Informer tous les clients dans les channels du client
+    // Ici, on peut appeler une méthode qui parcourt tous les channels et broadcast
+    removeClientFromAllChannelsWithNotice(client.getFd(), quitNotice);
+
+    // Retirer le client du serveur
+    removeClient(client.getFd());
+
+    // Ici, potentiellement fermer la connexion / cleanup, selon l’architecture
+
+    // Optionnel : logger la déconnexion
+    std::cout << client.getPrefix() << " has quit (" << quitMsg << ")" << std::endl;
+}
+
+
+void Server::handlePART(Client &client, std::string& arg)
+{
+	if (arg.empty()) {
+        sendToClient(client, buildErrorString(461, " PART :Not enough parameters"));
+        return;
+    }
+
+    // Séparer la liste des channels et le message de départ (optionnel)
+    std::string channelsPart;
+    std::string partMessage;
+
+    size_t pos = arg.find(" :");
+    if (pos != std::string::npos) {
+        channelsPart = arg.substr(0, pos);
+        partMessage = arg.substr(pos + 2);
+    } else {
+        channelsPart = arg;
+        partMessage = "";
+    }
+
+    // Parcourir la liste des channels séparés par ','
+    std::istringstream ss(channelsPart);
+    std::string channelName;
+
+    while (std::getline(ss, channelName, ',')) {
+        std::map<std::string, Channel>::iterator it = _channels.find(channelName);
+        if (it == _channels.end()) {
+            // Channel inconnu : erreur 403
+            sendToClient(client, buildErrorString(403, channelName + " :No such channel"));
+            continue;
+        }
+
+        Channel& channel = it->second;
+
+        if (!channel.hasClient(client.getFd())) {
+            // Client pas dans ce channel : erreur 442
+            sendToClient(client, buildErrorString(442, channelName + " :You're not on that channel"));
+            continue;
+        }
+
+        // Construire le message PART
+        std::string partMsg = ":" + client.getPrefix() + " PART " + channelName;
+        if (!partMessage.empty())
+            partMsg += " :" + partMessage;
+        partMsg += "\r\n";
+
+        // Envoyer la notification aux autres clients
+        channel.broadcast(partMsg, client.getFd());
+
+        // Retirer le client du channel
+        channel.removeClient(client.getFd());
+
+        // Supprimer le channel s'il est vide
+        if (channel.getChannelsClients().empty())
+            _channels.erase(it);
+    }
 }
 
 void Server::handlePASS(Client &client, std::string& arg)

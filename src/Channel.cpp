@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   Channel.cpp                                        :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
+/*   By: yoann <yoann@student.42.fr>                +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/18 14:39:45 by ylenoel           #+#    #+#             */
-/*   Updated: 2025/07/18 17:33:10 by ylenoel          ###   ########.fr       */
+/*   Updated: 2025/07/21 18:36:57 by yoann            ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -49,6 +49,12 @@ bool Channel::hasClient(int fd) const
 void Channel::setTopic(string& topic) {_topic = topic;}
 
 const map<int, Client*>& Channel::getChannelsClients() const {return _clients;}
+
+const std::string& Channel::getName() const
+{
+    return _name;  // ou quel que soit le nom de ton attribut de channel
+}
+
 
 std::ostream& operator<<(std::ostream& out, const Channel& channel)
 {

@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   Server.cpp                                         :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
+/*   By: yoann <yoann@student.42.fr>                +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/09 15:45:29 by ylenoel           #+#    #+#             */
-/*   Updated: 2025/07/18 17:36:22 by ylenoel          ###   ########.fr       */
+/*   Updated: 2025/07/21 19:09:58 by yoann            ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -23,9 +23,9 @@ Server::Server(int port, string password) : _serverHostName("Server ft_irc"), _p
 	_cmd_map["PASS"] = &Server::handlePASS;
 	_cmd_map["QUIT"] = &Server::handleQUIT;
 	_cmd_map["JOIN"] = &Server::handleJOIN;
+	_cmd_map["PART"] = &Server::handlePART;
 	// _cmd_map["PING"] = &Server::handlePING;
 	// _cmd_map["PONG"] = &Server::handlePONG;
-	// _cmd_map["PART"] = &Server::handlePART;
 	// _cmd_map["PRIVMSG"] = &Server::handlePRIVMSG;
 	// _cmd_map["NOTICE"] = &Server::handleNOTICE;
 	// _cmd_map["MODE"] = &Server::handleMODE;
@@ -232,26 +232,63 @@ void Server::removeClient(int fd)
 	close(fd);
 }
 
+
 void Server::removeClientFromAllChannels(int fd)
 {
-	for (ChannelMap::iterator it = _channels.begin(); it != _channels.end(); ) {
-		Channel& channel = it->second;
+    ClientMap::iterator clientIt = getClientByFd(fd);
+    if (clientIt == _db_clients.end())
+        return;
 
-		// S'il trouve un client avec ce fd, on le supprime du channel
-		if (channel.hasClient(fd)) {
-			channel.removeClient(fd);
-		}
+    Client& client = clientIt->second;
 
-		// Supprimer le channel s'il est désormais vide
-		if (channel.getChannelsClients().empty())
-		{
-			ChannelMap::iterator toErase = it++;
-			_channels.erase(toErase);
-		}
-		else
-			++it;
-	}
+    ChannelMap::iterator it = _channels.begin();
+    while (it != _channels.end())
+    {
+        Channel& channel = it->second;
+
+        if (channel.hasClient(fd))
+        {
+            std::string partMsg = ":" + client.getPrefix() + " PART " + channel.getName() + "\r\n";
+            channel.broadcast(partMsg, fd);
+
+            channel.removeClient(fd);
+        }
+
+        if (channel.getChannelsClients().empty())
+        {
+            ChannelMap::iterator toErase = it;  // sauvegarde it
+            ++it;                              // avance it avant erase
+            _channels.erase(toErase);          // erase
+        }
+        else
+        {
+            ++it;
+        }
+    }
 }
+
+void Server::removeClientFromAllChannelsWithNotice(int fd, const std::string& notice)
+{
+    for (ChannelMap::iterator it = _channels.begin(); it != _channels.end(); )
+    {
+        Channel& channel = it->second;
+
+        if (channel.hasClient(fd))
+        {
+            channel.broadcast(notice, fd);  // Envoyer à tous sauf celui qui part
+            channel.removeClient(fd);
+        }
+
+        if (channel.getChannelsClients().empty()){
+			ChannelMap::iterator toErase = it;  // sauvegarde it
+            ++it;                              // avance it avant erase
+            _channels.erase(toErase); 
+		}
+        else
+            ++it;
+    }
+}
+
 
 /* Là on est sur un gros morceau. 
 1 - Utilisation de stringstream : On a besoin d'extraire des morceaux de message, stringstream nous permet 

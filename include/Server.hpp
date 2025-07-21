@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   Server.hpp                                         :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
+/*   By: yoann <yoann@student.42.fr>                +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/09 15:28:05 by ylenoel           #+#    #+#             */
-/*   Updated: 2025/07/18 17:33:47 by ylenoel          ###   ########.fr       */
+/*   Updated: 2025/07/21 19:08:40 by yoann            ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -82,6 +82,7 @@ class Server
 		void handlePASS(Client &client, std::string& arg);
 		void handleQUIT(Client &client, std::string& arg);
 		void handleJOIN(Client &client, std::string& arg);
+		void handlePART(Client &client, std::string& arg);
 	
 		std::vector<struct pollfd> _pollfds;
 		ClientMap _db_clients; // Liste des clients connectés.
@@ -117,6 +118,7 @@ class Server
 		void printConnectedClients(const Server& server);
 		void printConnectedChannels(const Server& server);
 		void removeClientFromAllChannels(int fd);
+		void removeClientFromAllChannelsWithNotice(int fd, const std::string& notice);
 };
 
 std::ostream& operator<<(std::ostream& out, const Server& Server);
