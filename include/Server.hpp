@@ -6,7 +6,7 @@
 /*   By: yoann <yoann@student.42.fr>                +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/09 15:28:05 by ylenoel           #+#    #+#             */
-/*   Updated: 2025/07/21 19:08:40 by yoann            ###   ########.fr       */
+/*   Updated: 2025/07/22 17:47:32 by yoann            ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -26,7 +26,7 @@
 #include <cstring>
 #include <poll.h>
 #include <algorithm>
-#include <Client.hpp>
+#include "Client.hpp"
 #include <sstream>
 #include <map>
 #include <cerrno>
@@ -72,24 +72,21 @@ class Server
 		int _port;			// Port du serveur (ex: 6667)
 		bool _running;		// État du serveur (On/off)
 		string _password;	// Password pour se connecter au réseau
+		std::vector<struct pollfd> _pollfds;
+		ClientMap _db_clients; // Liste des clients connectés.
+		CmdMap _cmd_map;		// Liste des commandes + ptr sur fonctions handleCMDS
+		ChannelMap _channels; // Liste des channels
 
-		string buildCommandString(const string& message);
-		string buildErrorString(const int& code, const string& message);
-		bool sendWelcome(const Client &client);
-
+		/* Méthodes */
+		
 		void handleNICK(Client &client, std::string& arg);
 		void handleUSER(Client &client, std::string& arg);
 		void handlePASS(Client &client, std::string& arg);
 		void handleQUIT(Client &client, std::string& arg);
 		void handleJOIN(Client &client, std::string& arg);
 		void handlePART(Client &client, std::string& arg);
-	
-		std::vector<struct pollfd> _pollfds;
-		ClientMap _db_clients; // Liste des clients connectés.
-		CmdMap _cmd_map;		// Liste des commandes + ptr sur fonctions handleCMDS
-		ChannelMap _channels; // Liste des channels
-		
-
+		void handlePRIVMSG(Client &client, std::string& arg);
+		void handleNOTICE(Client &client, std::string& arg);
 		void setupSocket();
 		void listen();
 		void acceptNewClient();
@@ -101,6 +98,9 @@ class Server
 		ClientMap::iterator getClientByFd(const int fd);
 		bool isNicknameTaken(const std::string& nickname) const;
 		void setNonBlocking(int fd);
+		string buildCommandString(const string& message);
+		string buildErrorString(const int& code, const string& message);
+		bool sendWelcome(const Client &client);
 		
 		public:
 		

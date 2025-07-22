@@ -6,7 +6,7 @@
 /*   By: yoann <yoann@student.42.fr>                +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/09 15:45:29 by ylenoel           #+#    #+#             */
-/*   Updated: 2025/07/21 19:09:58 by yoann            ###   ########.fr       */
+/*   Updated: 2025/07/22 17:47:11 by yoann            ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -24,10 +24,10 @@ Server::Server(int port, string password) : _serverHostName("Server ft_irc"), _p
 	_cmd_map["QUIT"] = &Server::handleQUIT;
 	_cmd_map["JOIN"] = &Server::handleJOIN;
 	_cmd_map["PART"] = &Server::handlePART;
+	_cmd_map["PRIVMSG"] = &Server::handlePRIVMSG;
+	_cmd_map["NOTICE"] = &Server::handleNOTICE;
 	// _cmd_map["PING"] = &Server::handlePING;
 	// _cmd_map["PONG"] = &Server::handlePONG;
-	// _cmd_map["PRIVMSG"] = &Server::handlePRIVMSG;
-	// _cmd_map["NOTICE"] = &Server::handleNOTICE;
 	// _cmd_map["MODE"] = &Server::handleMODE;
 	// _cmd_map["TOPIC"] = &Server::handleTOPIC;
 	// _cmd_map["KICK"] = &Server::handleKICK;
@@ -119,72 +119,139 @@ void Server::acceptNewClient()
 
 void Server::run()
 {
-	while(g_running)
+	while (g_running)
 	{
-		/* Exécution de poll(), qui va remplir les pollfds.revent concerné par des évènements.*/
-		// Poll() itère tout seul le long du _pollfds.
 		int ret = poll(&_pollfds[0], _pollfds.size(), -1);
-		if(ret < 0)
+		if (ret < 0)
 		{
-			if (errno == EINTR && !g_running) 
+			if (errno == EINTR && !g_running)
 				break;
 			std::cerr << "Poll failed!" << std::endl;
 			continue;
 		}
-		for(size_t i = 0; i < _pollfds.size(); ++i)
+
+		for (size_t i = 0; i < _pollfds.size(); ++i)
 		{
-			// Ici, on utilise & et pas && : & est un opérateur de comparaison binaire
-			// On l'utilise pour comparer si revent a bien la même valeur que POLLIN. 
-			// Si il n'y a pas d'events POLLIN dans le pollfds concerné, on passe au prochain pollfds.
-			// POLLIN : État du i/o, prêt à être accéder. Comme pour les flags d'open, il peut-être plusieurs états en même temps.
-			if(!(_pollfds[i].revents & POLLIN)) // Si le socket n'est pas prêt à être lu/écrit on passe au prochain socket _pollfds[i].
+			if (!(_pollfds[i].revents & POLLIN))
 				continue;
-			
-			/* Point logique important : 
-			Si poll() détecte un event sur le socket serveur, c'est forcément qu'une nouvelle connexion est détectée. 
-			Ne pas chercher plus loin. */
-			if(_pollfds[i].fd == _server_fd) {
-				// Nouvelle connexion
+
+			if (_pollfds[i].fd == _server_fd)
+			{
 				acceptNewClient();
 				continue;
 			}
-			if (_pollfds[i].revents & (POLLHUP | POLLERR) ){
+
+			if (_pollfds[i].revents & (POLLHUP | POLLERR))
+			{
 				std::cout << "Client disconnected (pollhup/pollerr)" << std::endl;
-				removeClient(_pollfds[i].fd);
+				removeClient(_pollfds[i].fd); // Ce removeClient() ferme déjà le fd
 				--i;
 				continue;
 			}
 
 			int client_fd = _pollfds[i].fd;
-			static char buffer[1024];
+			char buffer[1024];
+			std::memset(buffer, 0, sizeof(buffer)); // C++98 style
+
 			int bytes = recv(client_fd, buffer, sizeof(buffer), 0);
-			if(bytes <= 0)
+			if (bytes <= 0)
 			{
-				close(client_fd);
 				std::cout << "Client disconnected" << std::endl;
-				
-				// Retirer client des vectors _clients et _pollfds
-				removeClient(client_fd);
+				removeClient(client_fd); // close déjà fait ici
 				--i;
 			}
 			else
 			{
-				const ClientMap::iterator maybe_client = getClientByFd(client_fd);
-				if (maybe_client == _db_clients.end())
-					throw runtime_error("Failed to retreive client information");
-				
-				cout << "Client sent:" << buffer << endl;	
-				handleMessage(maybe_client->second, buffer);
+				ClientMap::iterator it = getClientByFd(client_fd);
+				if (it == _db_clients.end()){
+					std::cerr << "Failed to retrieve client information" << std::endl;
+					continue;
+				}
+
+				std::cout << "Client sent:" << buffer << std::endl;
+				handleMessage(it->second, buffer);
 			}
+
 			_pollfds[i].revents = 0;
 			printConnectedClients(*this);
 			printConnectedChannels(*this);
-			cout << *this << endl;
+			std::cout << *this << std::endl;
 		}
 	}
-	cout << "Shutting down server..." << endl;
+
+	std::cout << "Shutting down server..." << std::endl;
 	close_fds();
 }
+
+
+// void Server::run()
+// {
+// 	while(g_running)
+// 	{
+// 		/* Exécution de poll(), qui va remplir les pollfds.revent concerné par des évènements.*/
+// 		// Poll() itère tout seul le long du _pollfds.
+// 		int ret = poll(&_pollfds[0], _pollfds.size(), -1);
+// 		if(ret < 0)
+// 		{
+// 			if (errno == EINTR && !g_running) 
+// 				break;
+// 			std::cerr << "Poll failed!" << std::endl;
+// 			continue;
+// 		}
+// 		for(size_t i = 0; i < _pollfds.size(); ++i)
+// 		{
+// 			// Ici, on utilise & et pas && : & est un opérateur de comparaison binaire
+// 			// On l'utilise pour comparer si revent a bien la même valeur que POLLIN. 
+// 			// Si il n'y a pas d'events POLLIN dans le pollfds concerné, on passe au prochain pollfds.
+// 			// POLLIN : État du i/o, prêt à être accéder. Comme pour les flags d'open, il peut-être plusieurs états en même temps.
+// 			if(!(_pollfds[i].revents & POLLIN)) // Si le socket n'est pas prêt à être lu/écrit on passe au prochain socket _pollfds[i].
+// 				continue;
+			
+// 			/* Point logique important : 
+// 			Si poll() détecte un event sur le socket serveur, c'est forcément qu'une nouvelle connexion est détectée. 
+// 			Ne pas chercher plus loin. */
+// 			if(_pollfds[i].fd == _server_fd) {
+// 				// Nouvelle connexion
+// 				acceptNewClient();
+// 				continue;
+// 			}
+// 			if (_pollfds[i].revents & (POLLHUP | POLLERR) ){
+// 				std::cout << "Client disconnected (pollhup/pollerr)" << std::endl;
+// 				removeClient(_pollfds[i].fd);
+// 				--i;
+// 				continue;
+// 			}
+
+// 			int client_fd = _pollfds[i].fd;
+// 			static char buffer[1024];
+// 			int bytes = recv(client_fd, buffer, sizeof(buffer), 0);
+// 			if(bytes <= 0)
+// 			{
+// 				close(client_fd);
+// 				std::cout << "Client disconnected" << std::endl;
+				
+// 				// Retirer client des vectors _clients et _pollfds
+// 				removeClient(client_fd);
+// 				--i;
+// 			}
+// 			else
+// 			{
+// 				const ClientMap::iterator maybe_client = getClientByFd(client_fd);
+// 				if (maybe_client == _db_clients.end())
+// 					throw runtime_error("Failed to retreive client information");
+				
+// 				cout << "Client sent:" << buffer << endl;	
+// 				handleMessage(maybe_client->second, buffer);
+// 			}
+// 			_pollfds[i].revents = 0;
+// 			printConnectedClients(*this);
+// 			printConnectedChannels(*this);
+// 			cout << *this << endl;
+// 		}
+// 	}
+// 	cout << "Shutting down server..." << endl;
+// 	close_fds();
+// }
 
 //This function returns a boolean but this value is never checked ? is it usefull ?
 //Would it be better to throw an error ? Do we care about the send function failing ?
@@ -318,7 +385,7 @@ void Server::handleMessage(Client& client, const std::string& msg)
 	const CmdMap::iterator result = _cmd_map.find(cmdName);
 	cout << cmdName << endl;
 	if (result == _cmd_map.end()) {
-			sendToClient(client, buildErrorString(421, cmdName + " :Unknown command\r\n"));
+			sendToClient(client, buildErrorString(421, cmdName + " :Unknown command"));
 			return;
 	}
 	else if(!client.getHasPassword() && cmdName != "PASS"){

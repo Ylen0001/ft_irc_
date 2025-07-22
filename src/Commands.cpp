@@ -6,12 +6,13 @@
 /*   By: yoann <yoann@student.42.fr>                +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/15 14:33:42 by yoann             #+#    #+#             */
-/*   Updated: 2025/07/21 19:08:09 by yoann            ###   ########.fr       */
+/*   Updated: 2025/07/22 17:51:20 by yoann            ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "../include/Server.hpp"
 #include <algorithm>
+#include "../include/colors.hpp"
 
 //Function to generate the command string rather than 
 //duplicating the code in each command handler
@@ -277,4 +278,125 @@ void Server::handleJOIN(Client& client, std::string& arg)
 	// 7. Envoyer le topic et la liste des utilisateurs
 	// (Tu peux l’ajouter plus tard si pas encore implémenté)
 		
+}
+
+void Server::handlePRIVMSG(Client& sender, std::string& msg)
+{
+    // msg contient tout ce qui suit "PRIVMSG ", exemple : "#42 :Hello world"
+    std::stringstream ss(msg);
+
+    std::string target;
+    ss >> target;  // cible : channel ou nick
+
+    if (target.empty()) {
+        sendToClient(sender, buildErrorString(411, ":No recipient given (PRIVMSG)"));
+        return;
+    }
+
+    // Récupérer le reste (le message) après la cible, y compris les espaces
+    std::string restOfLine;
+    std::getline(ss, restOfLine);
+
+    // Le message doit commencer par ':', sinon erreur
+    size_t colonPos = restOfLine.find(':');
+    if (colonPos == std::string::npos) {
+        sendToClient(sender, buildErrorString(412, ":No text to send"));
+        return;
+    }
+
+    // Extraire le message après les deux points
+    std::string message = restOfLine.substr(colonPos + 1);
+
+    if (message.empty()) {
+        sendToClient(sender, buildErrorString(412, ":No text to send"));
+        return;
+    }
+
+    if (target[0] == '#') {
+        // Message vers un channel
+        ChannelMap::iterator chanIt = _channels.find(target);
+        if (chanIt == _channels.end()) {
+            sendToClient(sender, buildErrorString(403, target + " :No such channel"));
+            return;
+        }
+
+        Channel& channel = chanIt->second;
+
+        if (!channel.hasClient(sender.getFd())) {
+            sendToClient(sender, buildErrorString(404, target + " :Cannot send to channel"));
+            return;
+        }
+
+        // Format IRC : ":prefix PRIVMSG target :message\r\n"
+        std::string fullMsg = ":" + sender.getPrefix() + " PRIVMSG " + target + " :" + message + "\r\n";
+
+        // Broadcast à tous sauf l'expéditeur
+        channel.broadcast(fullMsg, sender.getFd());
+
+    } else {
+        // Message vers un utilisateur
+        Client* recipient = NULL;
+        for (ClientMap::iterator it = _db_clients.begin(); it != _db_clients.end(); ++it) {
+            if (it->second.getNickname() == target) {
+                recipient = &(it->second);
+                break;
+            }
+        }
+
+        if (!recipient) {
+            sendToClient(sender, buildErrorString(401, target + " :No such nick/channel"));
+            return;
+        }
+
+        // Envoyer le message à l'utilisateur cible
+        std::string fullMsg = ":" + sender.getPrefix() + " PRIVMSG " + target + " :" + message + "\r\n";
+        sendToClient(*recipient, fullMsg);
+    }
+}
+
+void Server::handleNOTICE(Client& client, std::string& msg)
+{
+    std::stringstream ss(msg);
+    std::string target;
+    ss >> target;
+
+    if (target.empty()) {
+        // Pas de cible, on ignore la commande NOTICE sans erreur
+        return;
+    }
+
+    std::string restOfMessage;
+    std::getline(ss, restOfMessage);
+
+    // On enlève les espaces au début
+    size_t start = restOfMessage.find_first_not_of(' ');
+    if (start != std::string::npos)
+        restOfMessage = restOfMessage.substr(start);
+    else
+        restOfMessage = "";
+
+    // On enlève le ':' initial du message s'il existe
+    if (!restOfMessage.empty() && restOfMessage[0] == ':')
+        restOfMessage = restOfMessage.substr(1);
+
+    // Si c’est un canal (commence par '#')
+    if (target[0] == '#') {
+        ChannelMap::iterator it = _channels.find(target);
+        if (it != _channels.end()) {
+            std::string fullMsg = ":" + client.getPrefix() + " NOTICE " + target + " :" + restOfMessage + "\r\n";
+            it->second.broadcast(fullMsg, client.getFd());
+        }
+        // Sinon, on ne fait rien (pas d’erreur envoyée)
+    }
+    else {
+        // Cible utilisateur
+        for (ClientMap::iterator it = _db_clients.begin(); it != _db_clients.end(); ++it) {
+            if (it->second.getNickname() == target) {
+                std::string fullMsg = ":" + client.getPrefix() + " NOTICE " + target + " :" + restOfMessage + "\r\n";
+                sendToClient(it->second, fullMsg);
+                break;
+            }
+        }
+        // Si utilisateur pas trouvé, on ne fait rien
+    }
 }

@@ -52,3 +52,18 @@ Notion interessantes abordees : getter de map/vector.
 - RemoveAllClientsFromChannels() 
 - HandlePART() 
 - HandleQUIT() 
+
+20/06 :
+
+- HandlePRIVMSG 
+Ici on est sur un gros morceau.
+
+- On lit la cible avec ss >> target.
+- On récupère ensuite tout le reste de la ligne avec getline(ss, restOfLine).
+- Le message doit commencer par ':' (convention IRC), sinon erreur.
+- On extrait le message après les ':'.
+- Si la cible commence par #, c’est un channel, sinon un utilisateur.
+- Pour les channels, on vérifie que le channel existe et que l’expéditeur y est inscrit.
+- On envoie le message avec le format :prefix PRIVMSG target :message.
+- Pour un utilisateur, on cherche par nickname et on envoie directement.
+- En cas d’erreur, on renvoie un message d’erreur adapté.
