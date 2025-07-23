@@ -74,4 +74,10 @@ Notion interessantes abordees : getter de map/vector.
 - Debug operator dans Channel << ajouté.
 - HandleKICK (Gros morceau)
 - HandleTOPIC
--
+- HandleINVITE (Presque bon, il manque la partie à ajouter quand handleMODE sera ready)
+- Ajout du set int _authorizedClients dans Channel, pour INVITE et MODE. + getter/setter/checker + Debug.
+
+POUR LA PROCHAINE SESSION :
+
+- Server::handleMODE()
+- Terminer Server::handleINVITE()

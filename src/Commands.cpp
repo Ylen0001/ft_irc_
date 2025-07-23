@@ -6,7 +6,7 @@
 /*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/15 14:33:42 by yoann             #+#    #+#             */
-/*   Updated: 2025/07/23 16:37:18 by ylenoel          ###   ########.fr       */
+/*   Updated: 2025/07/23 17:47:37 by ylenoel          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -512,4 +512,52 @@ void Server::handleTOPIC(Client& client, std::string& arg)
 		chanIt->second.broadcast(client.getPrefix() + " TOPIC " + chanIt->second.getName() + " :" + chanIt->second.getTopic() + "\r\n");
 		return;
 	}
+}
+
+void Server::handleINVITE(Client& client, std::string& arg)
+{
+	stringstream ss(arg);
+	string nickname, channel;
+	ss >> nickname >> channel;
+	if(nickname.empty() || channel.empty())
+	{
+		sendToClient(client, buildErrorString(461, " INVITE :Not enough parameters"));
+		return;
+	}
+	// 1 - Vérification de l'existance d'un client nickname et d'un channel de ce nom.
+	ChannelMap::iterator chanIt = _channels.find(channel);
+	if(channel.empty() || channel[0] != '#')
+	{
+		sendToClient(client, buildErrorString(403, channel + " :No such channel"));
+		return;
+	}
+	ClientMap::iterator clientIt = getClientByNickName(nickname);
+	if (clientIt == _db_clients.end()) {
+		sendToClient(client, buildErrorString(401, client.getNickname() + " " + nickname + " :No such nickname"));
+		return;
+	}
+	// 2- Vérifier que le client qui invite est bien dans le channel
+	if(!chanIt->second.hasClient(client.getFd()))
+	{
+		sendToClient(client, buildErrorString(442, channel + " :You're not on that channel"));
+		return;
+	}
+	// 3- Vérifier que le client qui est invité n'est pas déjà présent dans le channel
+	if(chanIt->second.hasClient(clientIt->second.getFd()))
+	{
+		sendToClient(client, buildErrorString(443, nickname + " " + channel + " :is already on channel"));
+		return;
+	}
+	// 3 - Vérification que l'invitant est opérateur
+	// On devra implémenter le cas du mode +i quand handleMODE sera codé.
+	if(!chanIt->second.isOperator(client.getFd()))
+	{
+		sendToClient(client, buildErrorString(482, channel + " :You're not channel operator"));
+		return;
+	}
+	// 4 - On envoie le message d'invitation au client invitant, et à l'invité
+	sendToClient(clientIt->second, "341 " + client.getNickname() + " " + clientIt->second.getNickname() + " " + channel + "\r\n");
+	sendToClient(client, "341 " + client.getNickname() + " " + clientIt->second.getNickname() + " " + channel + "\r\n");
+	// 5 - On add le client invité à la listes des authorizedClients du channel
+	chanIt->second.addAuthorizedClient(clientIt->second.getFd());
 }

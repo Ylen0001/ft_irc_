@@ -6,7 +6,7 @@
 /*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/09 15:45:29 by ylenoel           #+#    #+#             */
-/*   Updated: 2025/07/23 16:42:00 by ylenoel          ###   ########.fr       */
+/*   Updated: 2025/07/23 17:30:56 by ylenoel          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -30,7 +30,7 @@ Server::Server(int port, string password) : _serverHostName("Server ft_irc"), _p
 	_cmd_map["PONG"] = &Server::handlePONG;
 	_cmd_map["KICK"] = &Server::handleKICK;
 	_cmd_map["TOPIC"] = &Server::handleTOPIC;
-	// _cmd_map["INVITE"] = &Server::handleINVITE;
+	_cmd_map["INVITE"] = &Server::handleINVITE;
 	// _cmd_map["MODE"] = &Server::handleMODE;
 	
 }
@@ -391,6 +391,7 @@ void Server::printConnectedChannels(const Server& server)
 		cout << C_WARM_ORANGE << it->second << C_RESET << endl;
 		cout << C_WARM_ORANGE << "Topic :" << it->second.getTopic() << C_RESET << endl;
 	}
+	
 }
 
 std::ostream& operator<<(std::ostream& out, const Server& Server)

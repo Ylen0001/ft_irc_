@@ -6,7 +6,7 @@
 /*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/18 14:30:04 by ylenoel           #+#    #+#             */
-/*   Updated: 2025/07/23 16:15:47 by ylenoel          ###   ########.fr       */
+/*   Updated: 2025/07/23 17:23:38 by ylenoel          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -30,6 +30,7 @@ class Channel
 		map<int, Client*> _clients;
 		Server* _server;
 		std::set<int> _operators; // FD des operators
+		std::set<int> _authorizedClients; // Liste d'invité autorisé. (Selon le mode du channel)
 	public:
 		Channel(const std::string& name, Server* server);
 		~Channel();
@@ -43,6 +44,9 @@ class Channel
 		bool hasClient(int fd) const;
 		const map<int, Client*>& getChannelsClients() const;
 		const set<int>& getOperators() const;
+		const set<int>& getAuthorizedClients() const;
+		void addAuthorizedClient(int fd);
+		bool isAuthorizedClient(int fd) const; 
 		void addOperators(int fd);
 		bool isOperator(int fd) const;
 };
