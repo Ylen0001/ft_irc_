@@ -49,15 +49,14 @@ Notion interessantes abordees : getter de map/vector.
 
 19/06 :
 
-- RemoveAllClientsFromChannels() 
-- HandlePART() 
-- HandleQUIT() 
+- RemoveAllClientsFromChannels()
+- HandlePART()
+- HandleQUIT()
 
 20/06 :
 
-- HandlePRIVMSG 
-Ici on est sur un gros morceau.
-
+- HandlePRIVMSG
+  Ici on est sur un gros morceau.
 - On lit la cible avec ss >> target.
 - On récupère ensuite tout le reste de la ligne avec getline(ss, restOfLine).
 - Le message doit commencer par ':' (convention IRC), sinon erreur.
@@ -67,3 +66,12 @@ Ici on est sur un gros morceau.
 - On envoie le message avec le format :prefix PRIVMSG target :message.
 - Pour un utilisateur, on cherche par nickname et on envoie directement.
 - En cas d’erreur, on renvoie un message d’erreur adapté.
+
+21/06 : 
+
+- Handle PING/PONG
+- Gestion des operators de channel. Dans la classe channel on a un set(int fd) _operators qui stocke les fd des operators pour chaque channel. Avec les getter/setter adaptés. J'ai également ajouté un checker bool IsOperator().
+- Debug operator dans Channel << ajouté.
+- HandleKICK (Gros morceau)
+- HandleTOPIC
+-

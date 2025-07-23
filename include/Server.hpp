@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   Server.hpp                                         :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: yoann <yoann@student.42.fr>                +#+  +:+       +#+        */
+/*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/09 15:28:05 by ylenoel           #+#    #+#             */
-/*   Updated: 2025/07/22 17:47:32 by yoann            ###   ########.fr       */
+/*   Updated: 2025/07/23 16:08:25 by ylenoel          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -87,6 +87,10 @@ class Server
 		void handlePART(Client &client, std::string& arg);
 		void handlePRIVMSG(Client &client, std::string& arg);
 		void handleNOTICE(Client &client, std::string& arg);
+		void handlePING(Client &client, std::string& arg);
+		void handlePONG(Client &client, std::string& arg);
+		void handleKICK(Client &client, std::string& arg);
+		void handleTOPIC(Client &client, std::string& arg);
 		void setupSocket();
 		void listen();
 		void acceptNewClient();
@@ -96,6 +100,7 @@ class Server
 		void removeClient(int fd);
 		void handleMessage(Client& client, const std::string& msg);
 		ClientMap::iterator getClientByFd(const int fd);
+		ClientMap::iterator getClientByNickName(const string& nickname);
 		bool isNicknameTaken(const std::string& nickname) const;
 		void setNonBlocking(int fd);
 		string buildCommandString(const string& message);

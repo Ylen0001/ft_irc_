@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   Commands.cpp                                       :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: yoann <yoann@student.42.fr>                +#+  +:+       +#+        */
+/*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/15 14:33:42 by yoann             #+#    #+#             */
-/*   Updated: 2025/07/22 17:51:20 by yoann            ###   ########.fr       */
+/*   Updated: 2025/07/23 16:37:18 by ylenoel          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -211,8 +211,9 @@ void Server::handleUSER(Client &client, std::string& arg) {
 	ss >> username >> hostname >> servername;
 
 
-	if (!arg.find_first_of(":")) 
-		realname = arg;
+	size_t colonPos = arg.find_first_of(":");
+	if (colonPos != std::string::npos)
+		realname = arg.substr(colonPos + 1);
 	else 
 		realname = arg.substr(arg.find_first_of(":"));
 		
@@ -259,6 +260,7 @@ void Server::handleJOIN(Client& client, std::string& arg)
 		// Channel inexistant, on le crée
 		_channels.insert(std::make_pair(arg, Channel(arg, this)));
 		it = _channels.find(arg); // On récupère l'emplacement du nouveau Channel sur it.
+		it->second.addOperators(client.getFd());
 	}
 
 	Channel &channel = it->second; // Raccourci pour une référence sur le channel pointé par it->second dans la map
@@ -399,4 +401,115 @@ void Server::handleNOTICE(Client& client, std::string& msg)
         }
         // Si utilisateur pas trouvé, on ne fait rien
     }
+}
+
+void Server::handlePING(Client& client, std::string& arg)
+{
+	if (arg.empty())
+	{
+		sendToClient(client, buildErrorString(409, ":No origin specified"));
+		return;
+	}
+
+	std::string reply = "PONG :" + arg + "\r\n";
+	sendToClient(client, reply);
+}
+
+void Server::handlePONG(Client& client, std::string& msg)
+{
+	(void)msg;
+	std::cout << "PONG reçu du client " << client.getFd() << std::endl;
+}
+
+void Server::handleKICK(Client& client, std::string& arg)
+{
+	std::stringstream ss(arg);
+	std::string channel, nickname, msg;
+	ss >> channel >> nickname;
+	std::getline(ss, msg);
+	
+	if (channel.empty() || channel[0] != '#') {
+		sendToClient(client, buildErrorString(403, channel + " :No such channel"));
+		return;
+	}
+
+	ChannelMap::iterator chanIt = _channels.find(channel);
+	if (chanIt == _channels.end()) {
+		sendToClient(client, buildErrorString(403, channel + " :No such channel"));
+		return;
+	}
+
+	if (!chanIt->second.isOperator(client.getFd())) {
+		sendToClient(client, buildErrorString(482, channel + " :You're not channel operator"));
+		return;
+	}
+
+	ClientMap::iterator it = getClientByNickName(nickname);
+	if (it == _db_clients.end()) {
+		sendToClient(client, buildErrorString(401, client.getNickname() + " " + nickname + " :No such nickname"));
+		return;
+	}
+
+	if (!chanIt->second.hasClient(it->second.getFd())) {
+		sendToClient(client, buildErrorString(441, nickname + " " + channel + " :They aren't on that channel"));
+		return;
+	}
+
+	// Remove client from the channel
+	chanIt->second.removeClient(it->second.getFd());
+
+	// Format kick message
+	std::string kickMsg = client.getPrefix() + " KICK " + channel + " " + nickname;
+	if (!msg.empty()) {
+		// Trim leading spaces in msg (because of getline)
+		size_t start = msg.find_first_not_of(" ");
+		if (start != std::string::npos)
+			msg = msg.substr(start);
+		kickMsg += " :" + msg;
+	} else {
+		kickMsg += " :Kicked";
+	}
+
+	chanIt->second.broadcast(kickMsg + "\r\n");
+}
+void Server::handleTOPIC(Client& client, std::string& arg)
+{
+	stringstream ss(arg);
+	string channel;
+	ss >> channel;
+	ChannelMap::iterator chanIt = _channels.find(channel);
+	if (channel.empty() || channel[0] != '#') {
+		sendToClient(client, buildErrorString(403, channel + " :No such channel"));
+		return;
+	}
+	if(!chanIt->second.hasClient(client.getFd()))
+	{
+		sendToClient(client, buildErrorString(442, channel + " :You're not on that channel"));
+		return;
+	}
+	std::size_t pos = arg.find(':');
+	if (pos == std::string::npos) {
+		// Pas de nouveau topic fourni -> On affiche l'actuel.
+		if(!chanIt->second.getTopic().empty())
+		{
+			sendToClient(client, buildErrorString(332, client.getNickname() + " " + chanIt->second.getName() + " " + chanIt->second.getTopic() + "\r\n"));
+			return;
+		}
+		else{
+			sendToClient(client, buildErrorString(331, client.getNickname() + " " + chanIt->second.getName() + " :No topic is set\r\n"));
+			return;
+		}
+	}
+	std::string topic = arg.substr(pos + 1);
+	
+	if (!chanIt->second.isOperator(client.getFd())) {
+		sendToClient(client, buildErrorString(482, channel + " :You're not channel operator"));
+		return;
+	}
+	else
+	{
+		chanIt->second.setTopic(topic);
+		chanIt->second.broadcast(client.getPrefix() + " TOPIC " + chanIt->second.getName() + " :" + chanIt->second.getTopic() + "\r\n");
+		return;
+	}
 }
