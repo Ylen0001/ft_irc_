@@ -6,7 +6,7 @@
 /*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/09 15:45:29 by ylenoel           #+#    #+#             */
-/*   Updated: 2025/08/04 14:35:47 by ylenoel          ###   ########.fr       */
+/*   Updated: 2025/08/04 16:31:00 by ylenoel          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -65,6 +65,12 @@ void Server::setupSocket()
 	addr.sin_port = htons(_port); // hostnetwork (converti le port en big endian pour les fonctions qui utilisent le network)
 	addr.sin_addr.s_addr = INADDR_ANY; 
 	
+	// Permet de sécuriser le socket (patch pour pouvoir relancer l'exec sur le meme port direct)
+	int yes = 1;
+	if (setsockopt(_server_fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) == -1) {
+		cerr << "setsockopt" << endl;
+		exit(1);
+	}
 	if(bind(_server_fd, (sockaddr*)&addr, sizeof(addr)) < 0 && close(_server_fd))
 		throw std::runtime_error("Failed to bind server!");
 
@@ -180,7 +186,7 @@ void Server::run()
 		}
 	}
 
-	std::cout << "Shutting down server..." << std::endl;
+	std::cout << "\nShutting down server..." << std::endl;
 	close_fds();
 }
 
@@ -325,6 +331,10 @@ void Server::handleMessage(Client& client, const std::string& msg)
 
 	const CmdMap::iterator result = _cmd_map.find(cmdName);
 	cout << cmdName << endl;
+	if(cmdName == "CAP") {
+    // On ignore simplement CAP, ça permet au client de continuer sans erreur bloquante
+    return;
+	}
 	if (result == _cmd_map.end()) {
 			sendToClient(client, buildErrorString(421, cmdName + " :Unknown command"));
 			return;
@@ -390,6 +400,7 @@ void Server::printConnectedChannels(const Server& server)
 		cout << C_WARM_ORANGE"Name: " << it->first << "\n";
 		cout << C_WARM_ORANGE << it->second << C_RESET << endl;
 		cout << C_WARM_ORANGE << "Topic :" << it->second.getTopic() << C_RESET << endl;
+		cout << C_WARM_ORANGE << "Modes : +i = " << it->second.getModeI() << " +t = " << it->second.getModeT() << endl;
 	}
 	
 }

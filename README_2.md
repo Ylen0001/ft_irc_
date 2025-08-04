@@ -84,6 +84,10 @@ POUR LA PROCHAINE SESSION :
 
 04/07
 
-- HandleMODE() En cours
+- HandleMODE() (Gros morceau)
+- Ajout de _modeI et _modeT dans Channel. Invitation only / Topic restricted
+- Ajout de handleMODE +- o pour ajouter/supprimer un opérateur.
 - Gérer dans JOIN le flag du channel pour accepter un client.
-- Dans debug afficher le mode du channel.
+- Dans debug afficher le mode du channel. OK
+
+05/07 : COMPATIBILITÉ IRSSI

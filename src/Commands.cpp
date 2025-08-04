@@ -6,7 +6,7 @@
 /*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/15 14:33:42 by yoann             #+#    #+#             */
-/*   Updated: 2025/08/04 15:13:16 by ylenoel          ###   ########.fr       */
+/*   Updated: 2025/08/04 15:44:15 by ylenoel          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -265,6 +265,12 @@ void Server::handleJOIN(Client& client, std::string& arg)
 
 	Channel &channel = it->second; // Raccourci pour une référence sur le channel pointé par it->second dans la map
 	
+	// Si le channel est en mode +i (Invitation only).
+	if(channel.getModeI() && channel.getAuthorizedClients().find(client.getFd()) == channel.getAuthorizedClients().end()){
+		sendToClient(client, buildErrorString(473, channel.getName() + ":Cannot join channel (+i)"));
+		return;
+	}
+	
 	// 5. Ajouter le client au channel
 	if (channel.hasClient(client.getFd())) {
 		// Il est déjà dans le channel, rien à faire
@@ -274,7 +280,7 @@ void Server::handleJOIN(Client& client, std::string& arg)
 	channel.addClient(&client);
 
 	// 6. Notifier tous les clients du channel
-	std::string joinMsg = ":" + client.getPrefix() + " JOIN " + arg + "\r\n";
+	std::string joinMsg = ":" + client.getPrefix() + " JOIN " + arg;
 	channel.broadcast(joinMsg);
 
 	// 7. Envoyer le topic et la liste des utilisateurs
@@ -592,7 +598,6 @@ void Server::handleMODE(Client &client, std::string& arg)
 
 	if(!channel.empty() && mode.empty() && nick.empty())
 	{
-		cout << "HELLO" << endl;
 		string msg = getServerHostName() + " 324 " + client.getNickname() + channel;
 		string modeMsg;
 		if(_channels.find(channel)->second.getModeI() && _channels.find(channel)->second.getModeT())
