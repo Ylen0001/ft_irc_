@@ -6,7 +6,7 @@
 /*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/15 14:33:42 by yoann             #+#    #+#             */
-/*   Updated: 2025/07/23 17:47:37 by ylenoel          ###   ########.fr       */
+/*   Updated: 2025/08/04 15:13:16 by ylenoel          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -560,4 +560,100 @@ void Server::handleINVITE(Client& client, std::string& arg)
 	sendToClient(client, "341 " + client.getNickname() + " " + clientIt->second.getNickname() + " " + channel + "\r\n");
 	// 5 - On add le client invité à la listes des authorizedClients du channel
 	chanIt->second.addAuthorizedClient(clientIt->second.getFd());
+}
+
+void Server::handleMODE(Client &client, std::string& arg)
+{
+	if(arg.empty()){
+		sendToClient(client, buildErrorString(461, " MODE :Not enough parameters"));
+		return;
+	}
+	
+	if(arg[0] != '#'){
+		sendToClient(client, buildErrorString(476, ":Invalid channel name"));
+		return;
+	}
+
+	
+	stringstream ss(arg);
+	string channel, mode, nick;
+	ss >> channel >> mode >> nick;
+	
+	
+	// 1 - On check que le channel est valide et existe
+	
+	ChannelMap::iterator chanIt = _channels.find(channel);
+	if(chanIt == _channels.end()){
+		sendToClient(client, buildErrorString(403, channel + " :No such channel"));
+		return;
+	}
+	
+	// cout << channel << " " << mode << " " << nick << endl;
+
+	if(!channel.empty() && mode.empty() && nick.empty())
+	{
+		cout << "HELLO" << endl;
+		string msg = getServerHostName() + " 324 " + client.getNickname() + channel;
+		string modeMsg;
+		if(_channels.find(channel)->second.getModeI() && _channels.find(channel)->second.getModeT())
+			modeMsg = " +it\r\n";
+		else if(_channels.find(channel)->second.getModeI())
+			modeMsg = " +i\r\n";
+		else if(_channels.find(channel)->second.getModeT())
+			modeMsg = " +t\r\n";
+		else
+			modeMsg = " +\r\n";
+		sendToClient(client, msg + modeMsg);
+		return;
+	}
+	
+	// 2 - On check que le client est bien opérateur du serveur pour pouvoir modifier le mode du channel
+	if (!chanIt->second.isOperator(client.getFd())) {
+		sendToClient(client, buildErrorString(482, channel + " :You're not channel operator"));
+		return;
+	}
+	
+	// 3 - Parsing du mode
+	
+	if (mode.size() < 2 || (mode[0] != '+' && mode[0] != '-')) {
+		sendToClient(client, buildErrorString(501, mode + " :Unknown MODE flag"));
+		return;
+	}	
+	
+	bool adding = (mode[0] == '+'); // Si mode[0] == '+' adding sera true, sinon false
+
+	for (size_t i = 1; i < mode.size(); ++i) {
+		char flag = mode[i];
+
+		if (flag == 'i') {
+			_channels.find(channel)->second.setInviteOnly(adding);
+		}
+		else if (flag == 't') {
+			_channels.find(channel)->second.setTopicRestricted(adding);
+		}
+		else if (flag == 'o') {
+			if (nick.empty()) {
+				sendToClient(client, buildErrorString(461, "MODE :Not enough parameters"));
+				return;
+			}
+			ClientMap::iterator targetIt = getClientByNickName(nick);
+			if (targetIt == _db_clients.end()) {
+				sendToClient(client, buildErrorString(401, nick + " :No such nickname"));
+				return;
+			}
+			int targetFd = targetIt->second.getFd();
+			if (!_channels.find(channel)->second.hasClient(targetFd)) {
+				sendToClient(client, buildErrorString(441, nick + " " + channel + " :They aren't on that channel"));
+				return;
+			}
+			if (adding)
+				_channels.find(channel)->second.addOperators(targetFd);
+			else
+				_channels.find(channel)->second.removeOperator(targetFd);
+		}
+		else {
+			sendToClient(client, buildErrorString(501, std::string(1, flag) + " :Unknown MODE flag"));
+			return;
+		}
+	}
 }

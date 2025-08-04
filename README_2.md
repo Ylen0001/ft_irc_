@@ -67,7 +67,7 @@ Notion interessantes abordees : getter de map/vector.
 - Pour un utilisateur, on cherche par nickname et on envoie directement.
 - En cas d’erreur, on renvoie un message d’erreur adapté.
 
-21/06 : 
+21/06 :
 
 - Handle PING/PONG
 - Gestion des operators de channel. Dans la classe channel on a un set(int fd) _operators qui stocke les fd des operators pour chaque channel. Avec les getter/setter adaptés. J'ai également ajouté un checker bool IsOperator().
@@ -81,3 +81,9 @@ POUR LA PROCHAINE SESSION :
 
 - Server::handleMODE()
 - Terminer Server::handleINVITE()
+
+04/07
+
+- HandleMODE() En cours
+- Gérer dans JOIN le flag du channel pour accepter un client.
+- Dans debug afficher le mode du channel.

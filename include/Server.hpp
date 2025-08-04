@@ -6,7 +6,7 @@
 /*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/09 15:28:05 by ylenoel           #+#    #+#             */
-/*   Updated: 2025/07/23 16:43:34 by ylenoel          ###   ########.fr       */
+/*   Updated: 2025/08/04 14:35:53 by ylenoel          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -92,6 +92,7 @@ class Server
 		void handleKICK(Client &client, std::string& arg);
 		void handleTOPIC(Client &client, std::string& arg);
 		void handleINVITE(Client &client, std::string& arg);
+		void handleMODE(Client &client, std::string& arg);
 		void setupSocket();
 		void listen();
 		void acceptNewClient();

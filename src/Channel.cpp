@@ -6,7 +6,7 @@
 /*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/18 14:39:45 by ylenoel           #+#    #+#             */
-/*   Updated: 2025/07/23 17:49:27 by ylenoel          ###   ########.fr       */
+/*   Updated: 2025/08/04 13:50:25 by ylenoel          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -14,7 +14,7 @@
 #include "../include/Server.hpp"
 #include "../include/colors.hpp"
 
-Channel::Channel(const std::string& name, Server* server) : _name(name), _clients(), _server(server) {}
+Channel::Channel(const std::string& name, Server* server) : _name(name), _clients(), _server(server), _modeI(false), _modeT(false) {}
 
 Channel::~Channel(){}
 
@@ -54,10 +54,7 @@ void Channel::setTopic(string& topic) {_topic = topic;}
 
 const map<int, Client*>& Channel::getChannelsClients() const {return _clients;}
 
-const std::string& Channel::getName() const
-{
-    return _name;  // ou quel que soit le nom de ton attribut de channel
-}
+const std::string& Channel::getName() const {return _name ;}
 
 const set<int>& Channel::getOperators() const {return _operators;} 
 
@@ -65,11 +62,28 @@ void Channel::addOperators(int fd) {_operators.insert(fd) ;}
 
 bool Channel::isOperator(int fd) const { return (_operators.find(fd) != _operators.end());}
 
+const bool& Channel::getModeI() const {return _modeI;}
+
+void Channel::setModeI(bool mode) {_modeI = mode;}
+
+const bool& Channel::getModeT() const {return _modeT;}
+
+void Channel::setModeT(bool mode) {_modeT = mode;}
+
 const set<int>& Channel::getAuthorizedClients() const {return _authorizedClients;}
 
 void Channel::addAuthorizedClient(int fd) {_authorizedClients.insert(fd);}
 
 bool Channel::isAuthorizedClient(int fd) const { return (_authorizedClients.find(fd) != _authorizedClients.end());}
+
+void Channel::setInviteOnly(bool val) {_modeI = val;}
+
+void Channel::setTopicRestricted(bool val) {_modeT = val;}
+
+void Channel::removeOperator(int fd){
+	if(isOperator(fd))
+		_operators.erase(fd);
+}
 
 std::ostream& operator<<(std::ostream& out, const Channel& channel)
 {

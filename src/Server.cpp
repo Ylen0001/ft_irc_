@@ -6,7 +6,7 @@
 /*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/09 15:45:29 by ylenoel           #+#    #+#             */
-/*   Updated: 2025/07/23 17:30:56 by ylenoel          ###   ########.fr       */
+/*   Updated: 2025/08/04 14:35:47 by ylenoel          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -31,7 +31,7 @@ Server::Server(int port, string password) : _serverHostName("Server ft_irc"), _p
 	_cmd_map["KICK"] = &Server::handleKICK;
 	_cmd_map["TOPIC"] = &Server::handleTOPIC;
 	_cmd_map["INVITE"] = &Server::handleINVITE;
-	// _cmd_map["MODE"] = &Server::handleMODE;
+	_cmd_map["MODE"] = &Server::handleMODE;
 	
 }
 

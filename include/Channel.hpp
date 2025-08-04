@@ -6,7 +6,7 @@
 /*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/18 14:30:04 by ylenoel           #+#    #+#             */
-/*   Updated: 2025/07/23 17:23:38 by ylenoel          ###   ########.fr       */
+/*   Updated: 2025/08/04 13:50:32 by ylenoel          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -25,12 +25,14 @@ class Client;
 class Channel
 {
 	private:
-		std::string _name; 				// Nom du channel
-		std::string _topic;
-		map<int, Client*> _clients;
-		Server* _server;
-		std::set<int> _operators; // FD des operators
-		std::set<int> _authorizedClients; // Liste d'invité autorisé. (Selon le mode du channel)
+		std::string _name; 					// Nom du channel
+		std::string _topic;					// Topic name
+		map<int, Client*> _clients;			// Liste de clients pair fd/client*
+		Server* _server;					// Pointeur sur le serveur
+		bool _modeI;						// Invitation-only
+		bool _modeT;						// Seuls les operators peuvent modifier le topic
+		std::set<int> _operators;			// FD des operators
+		std::set<int> _authorizedClients;	// Liste d'invités autorisés. (Selon le mode du channel)
 	public:
 		Channel(const std::string& name, Server* server);
 		~Channel();
@@ -49,6 +51,14 @@ class Channel
 		bool isAuthorizedClient(int fd) const; 
 		void addOperators(int fd);
 		bool isOperator(int fd) const;
+		const bool& getModeI() const;
+		void setModeI(bool mode);
+		const bool& getModeT() const;
+		void setModeT(bool mode);
+
+		void setInviteOnly(bool val);
+		void setTopicRestricted(bool val);
+		void removeOperator(int fd);
 };
 
 std::ostream& operator<<(std::ostream& out, const Channel& channel);
