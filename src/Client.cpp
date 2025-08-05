@@ -6,7 +6,7 @@
 /*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/10 15:33:22 by ylenoel           #+#    #+#             */
-/*   Updated: 2025/07/18 13:12:07 by ylenoel          ###   ########.fr       */
+/*   Updated: 2025/08/05 17:31:06 by ylenoel          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -46,7 +46,7 @@ std::string& Client::getBuffer() {return _buffer;}
 
 std::string Client::getPrefix() const
 {
-	return ":" + getNickname() + "!" + getUsername() + "@" + getHostname();
+	return getNickname() + "!" + getUsername() + "@" + getHostname();
 }
 
 std::ostream& operator<<(std::ostream& out, const Client& Client)

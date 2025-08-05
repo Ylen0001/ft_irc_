@@ -6,7 +6,7 @@
 /*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/15 14:33:42 by yoann             #+#    #+#             */
-/*   Updated: 2025/08/04 15:44:15 by ylenoel          ###   ########.fr       */
+/*   Updated: 2025/08/05 17:30:55 by ylenoel          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -29,46 +29,86 @@ string Server::buildErrorString(const int& code, const string& message) {
 	return oss.str();
 }
 
-bool Server::sendWelcome(const Client &client) {
-	std::ostringstream welcome;
-	welcome << ":" << getServerHostName() << " 001 " << client.getNickname()
-			<< " :Welcome to the Internet Relay Network " << client.getNickname()
-			<< "!" << client.getUsername() << "@" << client.getHostname() << "\r\n";
-	return sendToClient(client, welcome.str());
+void Server::sendMotd(const Client& client)
+{
+    std::string nick = client.getNickname();
+
+    sendToClient(client, "375 " + nick + " :- ft_irc Message of the Day -\r\n");  // début MOTD
+    sendToClient(client, "372 " + nick + " :- Welcome to ft_irc server!\r\n");    // ligne MOTD
+    sendToClient(client, "376 " + nick + " :End of MOTD command.\r\n");           // fin MOTD
 }
+
+
+void Server::sendWelcome(const Client& client)
+{
+	const std::string& nick = client.getNickname();
+
+	// 001 : Welcome
+	sendToClient(client, buildCommandString("001 " + nick + " :Welcome to the Internet Relay Network " + nick + "!" + client.getUsername() + "@" + client.getHostname()));
+
+	// 002 : Your host is
+	sendToClient(client, buildCommandString("002 " + nick + " :Your host is ft_irc, running version 1.0"));
+
+	// 003 : Server created
+	sendToClient(client, buildCommandString("003 " + nick + " :This server was created just now"));
+
+	// 004 : Server info (servername, version, user modes, channel modes)
+	sendToClient(client, buildCommandString("004 " + nick + " ft_irc 1.0 i o s"));
+
+	sendMotd(client);  // Envoi du MOTD complet (375, 372, 376)
+}
+
+
+// void Server::sendWelcome(const Client &client) {
+	// std::ostringstream welcome;
+	// welcome << ":" << getServerHostName() << " 001 " << client.getNickname()
+	// 		<< " :Welcome to the Internet Relay Network " << client.getNickname()
+	// 		<< "!" << client.getUsername() << "@" << client.getHostname() << "\r\n";
+	// return sendToClient(client, welcome.str());
+// }
 
 void Server::handleNICK(Client &client, std::string &arg)
 {
-	if (!client.getHasPassword()) {
-		sendToClient(client, buildErrorString(451, "You have not registered"));
-		return;
-	}
+    std::cout << "[handleNICK] arg = [" << arg << "]" << std::endl;
+    if (!client.getHasPassword()) {
+        sendToClient(client, buildErrorString(451, "You have not registered"));
+        return;
+    }
 
-	stringstream ss(arg);
-	string nickname;
-	ss >> nickname;
+    std::stringstream ss(arg);
+    std::string newNickname;
+    ss >> newNickname;
 
-	if (nickname.empty()) {
-		sendToClient(client, buildErrorString(431, "No nickname given"));
-		return;
-	}
+    if (newNickname.empty()) {
+        sendToClient(client, buildErrorString(431, "No nickname given"));
+        return;
+    }
 
-	//Nickname collision check
-	//Same logic as matchFd in Server.cpp, we use a find_if, if the username already exist
-	//throw an error
-	const ClientMap::iterator it = std::find_if(_db_clients.begin(), _db_clients.end(), MatchNickname(nickname));
-	if (it != _db_clients.end()) {
-		sendToClient(client, buildErrorString(433, "Nickname is already in use"));
-		return;
-	}
+    // Check if nickname is already in use
+    const ClientMap::iterator it = std::find_if(_db_clients.begin(), _db_clients.end(), MatchNickname(newNickname));
+    if (it != _db_clients.end()) {
+        sendToClient(client, buildErrorString(433, "Nickname is already in use"));
+        return;
+    }
 
-	client.setNickname(nickname);
+    std::string oldNickname = client.getNickname();
 
-	if (!client.getUsername().empty() && !client.getRealname().empty() && !client.isRegistered()) {
-		client.setRegistration(true);
-		sendWelcome(client);
-	}
+    client.setNickname(newNickname);
+
+    // Envoi du message NICK à tous les clients (y compris celui qui change)
+    std::string prefix = ":" + oldNickname;
+    std::string message = prefix + " NICK :" + newNickname + "\r\n";
+
+    for (ClientMap::iterator cit = _db_clients.begin(); cit != _db_clients.end(); ++cit) {
+        sendToClient(cit->second, message);
+    }
+
+    if (!client.getUsername().empty() && !client.getRealname().empty() && !client.isRegistered()) {
+        client.setRegistration(true);
+        sendWelcome(client);
+    }
 }
+
 
 void Server::handleQUIT(Client& client, std::string& arg)
 {
@@ -195,7 +235,10 @@ void Server::handlePASS(Client &client, std::string& arg)
 }
 
 
-void Server::handleUSER(Client &client, std::string& arg) {
+void Server::handleUSER(Client &client, std::string& arg) 
+{
+	std::cout << "[handleUSER] arg = [" << arg << "]" << std::endl;
+
 	if (!client.getHasPassword()) {
 		sendToClient(client, buildErrorString(451, "You have not registered"));
 		return;
@@ -285,8 +328,96 @@ void Server::handleJOIN(Client& client, std::string& arg)
 
 	// 7. Envoyer le topic et la liste des utilisateurs
 	// (Tu peux l’ajouter plus tard si pas encore implémenté)
-		
 }
+
+
+// void Server::handlePRIVMSG(Client& sender, std::string& msg)
+// {
+// 	// Format attendu : PRIVMSG <target> :<message>
+
+// 	// Séparation target + message
+// 	std::cout << "RAW PRIVMSG received: [" << msg << "]" << std::endl;
+
+//     size_t firstSpace = msg.find(' ');
+//     if (firstSpace == std::string::npos) {
+//         sendToClient(sender, buildErrorString(411, ":No recipient given (PRIVMSG)"));
+//         return;
+//     }
+
+//     std::string target = msg.substr(0, firstSpace);
+//     if (!target.empty() && target[0] == ':') {
+//         std::cout << "[handlePRIVMSG] Target has leading colon, stripping it." << std::endl;
+//         target = target.substr(1);
+//     }
+
+//     if (target.empty()) {
+//         sendToClient(sender, buildErrorString(411, ":No recipient given (PRIVMSG)"));
+//         return;
+//     }
+
+//     std::cout << "Target parsed: [" << target << "]";
+
+//     size_t colonPos = msg.find(":", firstSpace);
+//     if (colonPos == std::string::npos || colonPos + 1 >= msg.length()) {
+//         sendToClient(sender, buildErrorString(412, ":No text to send"));
+//         return;
+//     }
+
+//     std::string message = msg.substr(colonPos + 1);
+//     if (message.empty()) {
+//         sendToClient(sender, buildErrorString(412, ":No text to send"));
+//         return;
+//     }
+//     std::cout << ", Message parsed: [" << message << "]" << std::endl;
+
+// 	// Si channel
+// 	if (target[0] == '#')
+// 	{
+// 		ChannelMap::iterator chanIt = _channels.find(target);
+// 		if (chanIt == _channels.end())
+// 		{
+// 			sendToClient(sender, buildErrorString(403, target + " :No such channel"));
+// 			return;
+// 		}
+
+// 		Channel& channel = chanIt->second;
+// 		if (!channel.hasClient(sender.getFd()))
+// 		{
+// 			sendToClient(sender, buildErrorString(404, target + " :Cannot send to channel"));
+// 			return;
+// 		}
+		
+// 		std::cout << "[handlePRIVMSG] sender.getPrefix() = [" << sender.getPrefix() << "]" << std::endl;
+// 		std::string fullMsg = sender.getPrefix() + " PRIVMSG " + target + " :" + message + "\r\n";
+// 		channel.broadcast(fullMsg, sender.getFd());
+// 	}
+// 	else
+// 	{
+// 		// Sinon, c'est un user
+// 		Client* recipient = NULL;
+// 		for (ClientMap::iterator it = _db_clients.begin(); it != _db_clients.end(); ++it)
+// 		{
+// 			if (it->second.getNickname() == target)
+// 			{
+// 				recipient = &(it->second);
+// 				break;
+// 			}
+// 		}
+
+// 		if (!recipient)
+// 		{
+// 			sendToClient(sender, buildErrorString(401, target + " :No such nick/channel"));
+// 			return;
+// 		}
+// 		int recipientFd = recipient->getFd();
+// 		std::string fullMsg = ":" + sender.getPrefix() + " PRIVMSG " + target + " :" + message + "\r\n";
+// 		ssize_t bytes = write(recipientFd, fullMsg.c_str(), fullMsg.size());
+// 		std::cout << "[handlePRIVMSG] Wrote " << bytes << " bytes to fd " << recipientFd << std::endl;
+// 		// std::string fullMsg = ":" + sender.getPrefix() + " PRIVMSG " + target + " :" + message + "\r\n";
+// 		sendToClient(*recipient, fullMsg);
+// 	}
+// }
+
 
 void Server::handlePRIVMSG(Client& sender, std::string& msg)
 {
@@ -295,6 +426,8 @@ void Server::handlePRIVMSG(Client& sender, std::string& msg)
 
     std::string target;
     ss >> target;  // cible : channel ou nick
+	if (!target.empty() && target[0] == ':')
+    	target = target.substr(1);
 
     if (target.empty()) {
         sendToClient(sender, buildErrorString(411, ":No recipient given (PRIVMSG)"));
@@ -417,7 +550,7 @@ void Server::handlePING(Client& client, std::string& arg)
 		return;
 	}
 
-	std::string reply = "PONG :" + arg + "\r\n";
+	string reply = "PONG " + getServerHostName() + " :" + arg + "\r\n";
 	sendToClient(client, reply);
 }
 
@@ -568,97 +701,273 @@ void Server::handleINVITE(Client& client, std::string& arg)
 	chanIt->second.addAuthorizedClient(clientIt->second.getFd());
 }
 
+
+
+// void Server::handleMODE(Client &client, std::string& arg)
+// {
+// 	if (arg.empty()) {
+// 		sendToClient(client, buildErrorString(461, "MODE :Not enough parameters"));
+// 		return;
+// 	}
+
+// 	std::stringstream ss(arg);
+// 	std::string target;
+// 	ss >> target;
+
+// 	if (target.empty()) {
+// 		sendToClient(client, buildErrorString(461, "MODE :Not enough parameters"));
+// 		return;
+// 	}
+
+// 	// Si la cible est un utilisateur (nick)
+// 	if (target == client.getNickname()) {
+// 		// Si aucun autre argument → afficher les modes de l'utilisateur
+// 		if (ss.rdbuf()->in_avail() == 0) {
+// 			std::string userModes = "+i"; // Si tu veux plus tard gérer dynamiquement les modes utilisateur, remplace ici
+// 			std::string reply = ":" + getServerHostName() + " 221 " + client.getNickname() + " " + userModes + "\r\n";
+// 			sendToClient(client, reply);
+// 			return;
+// 		} else {
+// 			// Si d'autres arguments → changement de mode utilisateur non supporté
+// 			sendToClient(client, buildErrorString(501, " :User mode changes not supported"));
+// 			return;
+// 		}
+// 	}
+
+// 	// Si la cible est un canal
+// 	if (target[0] == '#') {
+// 		// Récupérer le reste de la ligne après le target
+// 		std::string rest;
+// 		std::getline(ss, rest);
+// 		if (!rest.empty() && rest[0] == ' ')
+// 			rest = rest.substr(1);
+
+// 		// Recherche du canal
+// 		ChannelMap::iterator chanIt = _channels.find(target);
+// 		if (chanIt == _channels.end()) {
+// 			sendToClient(client, buildErrorString(403, target + " :No such channel"));
+// 			return;
+// 		}
+
+// 		// Si pas de mode donné, on renvoie le mode courant du channel
+// 		if (rest.empty()) {
+// 			std::string msg = getServerHostName() + " 324 " + client.getNickname() + " " + target;
+// 			std::string modeMsg;
+// 			if (chanIt->second.getModeI() && chanIt->second.getModeT())
+// 				modeMsg = " +it\r\n";
+// 			else if (chanIt->second.getModeI())
+// 				modeMsg = " +i\r\n";
+// 			else if (chanIt->second.getModeT())
+// 				modeMsg = " +t\r\n";
+// 			else
+// 				modeMsg = " +\r\n";
+// 			sendToClient(client, msg + modeMsg);
+// 			return;
+// 		}
+
+// 		// Vérifie que le client est opérateur sur le channel pour modifier les modes
+// 		if (!chanIt->second.isOperator(client.getFd())) {
+// 			sendToClient(client, buildErrorString(482, target + " :You're not channel operator"));
+// 			return;
+// 		}
+
+// 		// Parsing du mode (exemple: +it, -o nick)
+// 		std::stringstream modeStream(rest);
+// 		std::string mode, nick;
+// 		modeStream >> mode >> nick;
+
+// 		if (mode.size() < 2 || (mode[0] != '+' && mode[0] != '-')) {
+// 			sendToClient(client, buildErrorString(501, mode + " :Unknown MODE flag"));
+// 			return;
+// 		}
+
+// 		bool adding = (mode[0] == '+');
+
+// 		for (size_t i = 1; i < mode.size(); ++i) {
+// 			char flag = mode[i];
+
+// 			if (flag == 'i') {
+// 				chanIt->second.setInviteOnly(adding);
+// 			}
+// 			else if (flag == 't') {
+// 				chanIt->second.setTopicRestricted(adding);
+// 			}
+// 			else if (flag == 'o') {
+// 				if (nick.empty()) {
+// 					sendToClient(client, buildErrorString(461, "MODE :Not enough parameters"));
+// 					return;
+// 				}
+// 				ClientMap::iterator targetIt = getClientByNickName(nick);
+// 				if (targetIt == _db_clients.end()) {
+// 					sendToClient(client, buildErrorString(401, nick + " :No such nickname"));
+// 					return;
+// 				}
+// 				int targetFd = targetIt->second.getFd();
+// 				if (!chanIt->second.hasClient(targetFd)) {
+// 					sendToClient(client, buildErrorString(441, nick + " " + target + " :They aren't on that channel"));
+// 					return;
+// 				}
+// 				if (adding)
+// 					chanIt->second.addOperators(targetFd);
+// 				else
+// 					chanIt->second.removeOperator(targetFd);
+// 			}
+// 			else {
+// 				sendToClient(client, buildErrorString(501, std::string(1, flag) + " :Unknown MODE flag"));
+// 				return;
+// 			}
+// 		}
+// 	}
+// 	// Sinon, la cible est invalide
+// 	else {
+// 		sendToClient(client, buildErrorString(501, " :Unknown MODE flag"));
+// 	}
+// }
+
+
 void Server::handleMODE(Client &client, std::string& arg)
 {
-	if(arg.empty()){
-		sendToClient(client, buildErrorString(461, " MODE :Not enough parameters"));
-		return;
-	}
-	
-	if(arg[0] != '#'){
-		sendToClient(client, buildErrorString(476, ":Invalid channel name"));
+	if (arg.empty()) {
+		sendToClient(client, buildErrorString(461, "MODE :Not enough parameters"));
 		return;
 	}
 
-	
-	stringstream ss(arg);
-	string channel, mode, nick;
-	ss >> channel >> mode >> nick;
-	
-	
-	// 1 - On check que le channel est valide et existe
-	
-	ChannelMap::iterator chanIt = _channels.find(channel);
-	if(chanIt == _channels.end()){
-		sendToClient(client, buildErrorString(403, channel + " :No such channel"));
+	std::stringstream ss(arg);
+	std::string target;
+	ss >> target;
+
+	if (target.empty()) {
+		sendToClient(client, buildErrorString(461, "MODE :Not enough parameters"));
 		return;
 	}
-	
-	// cout << channel << " " << mode << " " << nick << endl;
 
-	if(!channel.empty() && mode.empty() && nick.empty())
-	{
-		string msg = getServerHostName() + " 324 " + client.getNickname() + channel;
-		string modeMsg;
-		if(_channels.find(channel)->second.getModeI() && _channels.find(channel)->second.getModeT())
-			modeMsg = " +it\r\n";
-		else if(_channels.find(channel)->second.getModeI())
-			modeMsg = " +i\r\n";
-		else if(_channels.find(channel)->second.getModeT())
-			modeMsg = " +t\r\n";
-		else
-			modeMsg = " +\r\n";
-		sendToClient(client, msg + modeMsg);
-		return;
-	}
-	
-	// 2 - On check que le client est bien opérateur du serveur pour pouvoir modifier le mode du channel
-	if (!chanIt->second.isOperator(client.getFd())) {
-		sendToClient(client, buildErrorString(482, channel + " :You're not channel operator"));
-		return;
-	}
-	
-	// 3 - Parsing du mode
-	
-	if (mode.size() < 2 || (mode[0] != '+' && mode[0] != '-')) {
-		sendToClient(client, buildErrorString(501, mode + " :Unknown MODE flag"));
-		return;
-	}	
-	
-	bool adding = (mode[0] == '+'); // Si mode[0] == '+' adding sera true, sinon false
-
-	for (size_t i = 1; i < mode.size(); ++i) {
-		char flag = mode[i];
-
-		if (flag == 'i') {
-			_channels.find(channel)->second.setInviteOnly(adding);
-		}
-		else if (flag == 't') {
-			_channels.find(channel)->second.setTopicRestricted(adding);
-		}
-		else if (flag == 'o') {
-			if (nick.empty()) {
-				sendToClient(client, buildErrorString(461, "MODE :Not enough parameters"));
-				return;
-			}
-			ClientMap::iterator targetIt = getClientByNickName(nick);
-			if (targetIt == _db_clients.end()) {
-				sendToClient(client, buildErrorString(401, nick + " :No such nickname"));
-				return;
-			}
-			int targetFd = targetIt->second.getFd();
-			if (!_channels.find(channel)->second.hasClient(targetFd)) {
-				sendToClient(client, buildErrorString(441, nick + " " + channel + " :They aren't on that channel"));
-				return;
-			}
-			if (adding)
-				_channels.find(channel)->second.addOperators(targetFd);
-			else
-				_channels.find(channel)->second.removeOperator(targetFd);
-		}
-		else {
-			sendToClient(client, buildErrorString(501, std::string(1, flag) + " :Unknown MODE flag"));
+	if (target == client.getNickname()) {
+		if (ss.rdbuf()->in_avail() == 0) { // Si il n'y a plus rien a lire après target
+			std::string userModes = "+i";
+			std::string reply = ":" + getServerHostName() + " 221 " + client.getNickname() + " " + userModes + "\r\n";
+			sendToClient(client, reply);
+			return;
+		} else {
+			sendToClient(client, buildErrorString(501, " :User mode changes not supported"));
 			return;
 		}
+	}
+
+	if (target[0] == '#') {
+		std::string rest;
+		std::getline(ss, rest);
+		if (!rest.empty() && rest[0] == ' ')
+			rest = rest.substr(1);
+
+		ChannelMap::iterator chanIt = _channels.find(target);
+		if (chanIt == _channels.end()) {
+			sendToClient(client, buildErrorString(403, target + " :No such channel"));
+			return;
+		}
+
+		if (rest.empty()) {
+			std::string msg = getServerHostName() + " 324 " + client.getNickname() + " " + target + " ";
+			std::string modeMsg = "+";
+			if (chanIt->second.getModeI()) modeMsg += "i";
+			if (chanIt->second.getModeT()) modeMsg += "t";
+			if (chanIt->second.getModeK()) modeMsg += "k";
+			if (chanIt->second.getModeL()) modeMsg += "l";
+			modeMsg += "\r\n";
+			sendToClient(client, msg + modeMsg);
+			return;
+		}
+
+		if (!chanIt->second.isOperator(client.getFd())) {
+			sendToClient(client, buildErrorString(482, target + " :You're not channel operator"));
+			return;
+		}
+
+		std::stringstream modeStream(rest);
+		std::string mode, param;
+		modeStream >> mode;
+
+		std::vector<std::string> params;
+		while (modeStream >> param)
+			params.push_back(param);
+
+		if (mode.size() < 2 || (mode[0] != '+' && mode[0] != '-')) {
+			sendToClient(client, buildErrorString(501, mode + " :Unknown MODE flag"));
+			return;
+		}
+
+		bool adding = (mode[0] == '+');
+		size_t paramIndex = 0;
+
+		for (size_t i = 1; i < mode.size(); ++i) {
+			char flag = mode[i];
+
+			if (flag == 'i') {
+				chanIt->second.setInviteOnly(adding);
+			}
+			else if (flag == 't') {
+				chanIt->second.setTopicRestricted(adding);
+			}
+			else if (flag == 'o') {
+				if (paramIndex >= params.size()) {
+					sendToClient(client, buildErrorString(461, "MODE :Not enough parameters"));
+					return;
+				}
+				std::string nick = params[paramIndex++];
+				ClientMap::iterator targetIt = getClientByNickName(nick);
+				if (targetIt == _db_clients.end()) {
+					sendToClient(client, buildErrorString(401, nick + " :No such nickname"));
+					return;
+				}
+				int targetFd = targetIt->second.getFd();
+				if (!chanIt->second.hasClient(targetFd)) {
+					sendToClient(client, buildErrorString(441, nick + " " + target + " :They aren't on that channel"));
+					return;
+				}
+				if (adding)
+					chanIt->second.addOperators(targetFd);
+				else
+					chanIt->second.removeOperator(targetFd);
+			}
+			else if (flag == 'k') {
+				if (adding) {
+					if (paramIndex >= params.size()) {
+						sendToClient(client, buildErrorString(461, "MODE :Not enough parameters"));
+						return;
+					}
+					std::string pass = params[paramIndex++];
+					chanIt->second.setPass(pass);
+					chanIt->second.setModeK(true);
+				} else {
+					chanIt->second.setPass(std::string(""));
+					chanIt->second.setModeK(false);
+				}
+			}
+			else if (flag == 'l') {
+				if (adding) {
+					if (paramIndex >= params.size()) {
+						sendToClient(client, buildErrorString(461, "MODE :Not enough parameters"));
+						return;
+					}
+					std::istringstream iss(params[paramIndex++]);
+					int limit;
+					if (!(iss >> limit) || limit <= 0) {
+						sendToClient(client, buildErrorString(501, "l :Invalid user limit"));
+						return;
+					}
+					chanIt->second.setUserLimit(limit);
+					chanIt->second.setModeL(true);
+				} else {
+					chanIt->second.setUserLimit(0);
+					chanIt->second.setModeL(false);
+				}
+			}
+			else {
+				sendToClient(client, buildErrorString(501, std::string(1, flag) + " :Unknown MODE flag"));
+				return;
+			}
+		}
+	}
+	else {
+		sendToClient(client, buildErrorString(501, " :Unknown MODE flag"));
 	}
 }

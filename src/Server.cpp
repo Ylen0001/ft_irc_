@@ -6,7 +6,7 @@
 /*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/09 15:45:29 by ylenoel           #+#    #+#             */
-/*   Updated: 2025/08/04 16:31:00 by ylenoel          ###   ########.fr       */
+/*   Updated: 2025/08/05 17:20:55 by ylenoel          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -26,12 +26,12 @@ Server::Server(int port, string password) : _serverHostName("Server ft_irc"), _p
 	_cmd_map["PART"] = &Server::handlePART;
 	_cmd_map["PRIVMSG"] = &Server::handlePRIVMSG;
 	_cmd_map["NOTICE"] = &Server::handleNOTICE;
-	_cmd_map["PING"] = &Server::handlePING;
-	_cmd_map["PONG"] = &Server::handlePONG;
-	_cmd_map["KICK"] = &Server::handleKICK;
-	_cmd_map["TOPIC"] = &Server::handleTOPIC;
-	_cmd_map["INVITE"] = &Server::handleINVITE;
-	_cmd_map["MODE"] = &Server::handleMODE;
+	// _cmd_map["PING"] = &Server::handlePING;
+	// _cmd_map["PONG"] = &Server::handlePONG;
+	// _cmd_map["KICK"] = &Server::handleKICK;
+	// _cmd_map["TOPIC"] = &Server::handleTOPIC;
+	// _cmd_map["INVITE"] = &Server::handleINVITE;
+	// _cmd_map["MODE"] = &Server::handleMODE;
 	
 }
 
@@ -174,9 +174,23 @@ void Server::run()
 					std::cerr << "Failed to retrieve client information" << std::endl;
 					continue;
 				}
+				Client& client = it->second;
+				client.appendToBuffer(buffer);
 
-				std::cout << "Client sent:" << buffer << std::endl;
-				handleMessage(it->second, buffer);
+				std::string& fullBuffer = client.getBuffer();
+				size_t pos;
+
+				// Parse toutes les lignes IRC
+				while ((pos = fullBuffer.find("\r\n")) != std::string::npos)
+				{
+					std::string line = fullBuffer.substr(0, pos);
+					fullBuffer.erase(0, pos + 2);  // Supprime la ligne + \r\n
+
+					std::cout << "Client sent: " << line << std::endl;
+					handleMessage(client, line);
+					if(_db_clients.find(client_fd) == _db_clients.end())
+						break;
+				}
 			}
 
 			_pollfds[i].revents = 0;
@@ -193,25 +207,59 @@ void Server::run()
 
 //This function returns a boolean but this value is never checked ? is it usefull ?
 //Would it be better to throw an error ? Do we care about the send function failing ?
-bool Server::sendToClient(const Client &client, const std::string &msg) {
+
+bool Server::sendToClient(const Client &client, const std::string &msg)
+{
+	int fd = client.getFd();
+
+	// Vérifie si le client est encore valide dans la base
+	if (_db_clients.find(fd) == _db_clients.end()) {
+		std::cerr << "[Warning] Tried to send to non-existent client (fd = " << fd << ")" << std::endl;
+		return false;
+	}
+
 	size_t totalSent = 0;
 	size_t toSend = msg.length();
 
-	while (totalSent < toSend) {
-		ssize_t sent = send(client.getFd(), msg.c_str() + totalSent,
-							toSend - totalSent, 0);
-		if (sent < 0) {
-				std::cerr << "[Error] Failed to send to client "
-						  << client.getFd() << ": " << strerror(errno)
-						  << std::endl;
+	while (totalSent < toSend)
+	{
+		std::cout << "[sendToClient] Sending to fd " << fd << ": " << msg << std::endl;
+		ssize_t sent = send(fd, msg.c_str() + totalSent, toSend - totalSent, 0);
+		if (sent < 0)
+		{
+			std::cerr << "[Error] Failed to send to client " << fd
+					  << ": " << strerror(errno) << std::endl;
 
-				// Gestion d'erreurs à implémenter ici
-				return false;
+			// Supprime proprement le client pour éviter d'essayer de lui reparler
+			removeClient(fd);
+			return false;
 		}
+		else
+			    std::cout << "[sendToClient] Sent " << sent << " bytes" << std::endl;
 		totalSent += sent;
 	}
 	return true;
 }
+
+// bool Server::sendToClient(const Client &client, const std::string &msg) {
+// 	size_t totalSent = 0;
+// 	size_t toSend = msg.length();
+
+// 	while (totalSent < toSend) {
+// 		ssize_t sent = send(client.getFd(), msg.c_str() + totalSent,
+// 							toSend - totalSent, 0);
+// 		if (sent < 0) {
+// 				std::cerr << "[Error] Failed to send to client "
+// 						  << client.getFd() << ": " << strerror(errno)
+// 						  << std::endl;
+
+// 				// Gestion d'erreurs à implémenter ici
+// 				return false;
+// 		}
+// 		totalSent += sent;
+// 	}
+// 	return true;
+// }
 
 void Server::setNonBlocking(int fd) {
 	int flags = fcntl(fd, F_GETFL, 0);
@@ -312,40 +360,92 @@ handle la cmd présente dans le msg.
 
 */
 
+
 void Server::handleMessage(Client& client, const std::string& msg)
 {
-	std::stringstream ss(msg);
+	if (msg.empty())
+		return;
 
-	std::string cmdName;
-	ss >> cmdName;
+	std::istringstream ss(msg);
+	std::string command;
+	ss >> command;
 
-	std::string arg;
-	std::getline(ss, arg);
+	// Convertir la commande en uppercase, car IRC est case-insensitive
+	for (size_t i = 0; i < command.size(); ++i)
+		command[i] = std::toupper(command[i]);
 
-	// Trim spaces au début
-	size_t start = arg.find_first_not_of(' ');
-	if (start != std::string::npos)
-		arg = arg.substr(start);
+	std::string rest;
+	std::getline(ss, rest);
+
+	// Supprimer espace initial
+	size_t pos = rest.find_first_not_of(" ");
+	if (pos != std::string::npos)
+		rest = rest.substr(pos);
 	else
-		arg = "";
+		rest.clear();  // Que des espaces
 
-	const CmdMap::iterator result = _cmd_map.find(cmdName);
-	cout << cmdName << endl;
-	if(cmdName == "CAP") {
-    // On ignore simplement CAP, ça permet au client de continuer sans erreur bloquante
-    return;
-	}
+	// Toujours enlever ':' initial dans rest (utile pour PRIVMSG et autres)
+	if (!rest.empty() && rest[0] == ':')
+		rest = rest.substr(1);
+
+	std::cout << "[handleMessage] Command: [" << command << "] Arg: [" << rest << "]" << std::endl;
+
+	// Ignore CAP
+	if (command == "CAP")
+		return;
+
+	// Vérification de commande connue
+	const CmdMap::iterator result = _cmd_map.find(command);
 	if (result == _cmd_map.end()) {
-			sendToClient(client, buildErrorString(421, cmdName + " :Unknown command"));
-			return;
+		sendToClient(client, buildErrorString(421, command + " :Unknown command"));
+		return;
 	}
-	else if(!client.getHasPassword() && cmdName != "PASS"){
+
+	// Vérifie que le mot de passe est bien passé avant toute autre commande
+	if (!client.getHasPassword() && command != "PASS") {
 		sendToClient(client, buildErrorString(451, "* :You have not registered"));
 		return;
 	}
 
-	(this->*(result->second))(client, arg);
+	// Appelle la bonne commande
+	(this->*(result->second))(client, rest);
 }
+
+
+// void Server::handleMessage(Client& client, const std::string& msg)
+// {
+// 	std::stringstream ss(msg);
+
+// 	std::string cmdName;
+// 	ss >> cmdName;
+
+// 	std::string arg;
+// 	std::getline(ss, arg);
+
+// 	// Trim spaces au début
+// 	size_t start = arg.find_first_not_of(' ');
+// 	if (start != std::string::npos)
+// 		arg = arg.substr(start);
+// 	else
+// 		arg = "";
+
+// 	const CmdMap::iterator result = _cmd_map.find(cmdName);
+// 	cout << cmdName << endl;
+// 	if(cmdName == "CAP") {
+//     // On ignore simplement CAP, ça permet au client de continuer sans erreur bloquante
+//     return;
+// 	}
+// 	if (result == _cmd_map.end()) {
+// 			sendToClient(client, buildErrorString(421, cmdName + " :Unknown command"));
+// 			return;
+// 	}
+// 	else if(!client.getHasPassword() && cmdName != "PASS"){
+// 		sendToClient(client, buildErrorString(451, "* :You have not registered"));
+// 		return;
+// 	}
+
+// 	(this->*(result->second))(client, arg);
+// }
 
 
 bool Server::isNicknameTaken(const std::string& nickname) const {

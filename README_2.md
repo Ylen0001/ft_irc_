@@ -91,3 +91,5 @@ POUR LA PROCHAINE SESSION :
 - Dans debug afficher le mode du channel. OK
 
 05/07 : COMPATIBILITÉ IRSSI
+
+- Ajout du mode K/L dans handleMODE

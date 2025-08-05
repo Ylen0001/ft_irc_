@@ -6,7 +6,7 @@
 /*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/18 14:30:04 by ylenoel           #+#    #+#             */
-/*   Updated: 2025/08/04 13:50:32 by ylenoel          ###   ########.fr       */
+/*   Updated: 2025/08/05 15:16:22 by ylenoel          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -31,6 +31,10 @@ class Channel
 		Server* _server;					// Pointeur sur le serveur
 		bool _modeI;						// Invitation-only
 		bool _modeT;						// Seuls les operators peuvent modifier le topic
+		bool _modeK;						// Keyword mode
+		bool _modeL;						// Limit mode
+		std::string _pass;					// mdp du channel (Si mode -k)
+		int	_userLimit;						// Limite de clients max autorisé dans le channel
 		std::set<int> _operators;			// FD des operators
 		std::set<int> _authorizedClients;	// Liste d'invités autorisés. (Selon le mode du channel)
 	public:
@@ -55,6 +59,14 @@ class Channel
 		void setModeI(bool mode);
 		const bool& getModeT() const;
 		void setModeT(bool mode);
+		const bool& getModeK() const;
+		void setModeK(bool mode);
+		const bool& getModeL() const;
+		void setModeL(bool mode);
+		const std::string& getPass() const;
+		void setPass(const std::string& pass);
+		const int& getUserLimit() const;
+		void setUserLimit(const int& limit);
 
 		void setInviteOnly(bool val);
 		void setTopicRestricted(bool val);

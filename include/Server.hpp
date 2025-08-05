@@ -6,7 +6,7 @@
 /*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/09 15:28:05 by ylenoel           #+#    #+#             */
-/*   Updated: 2025/08/04 14:35:53 by ylenoel          ###   ########.fr       */
+/*   Updated: 2025/08/05 10:49:15 by ylenoel          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -107,7 +107,8 @@ class Server
 		void setNonBlocking(int fd);
 		string buildCommandString(const string& message);
 		string buildErrorString(const int& code, const string& message);
-		bool sendWelcome(const Client &client);
+		void sendWelcome(const Client &client);
+		void sendMotd(const Client &client);
 		
 		public:
 		

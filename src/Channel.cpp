@@ -6,7 +6,7 @@
 /*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/18 14:39:45 by ylenoel           #+#    #+#             */
-/*   Updated: 2025/08/04 13:50:25 by ylenoel          ###   ########.fr       */
+/*   Updated: 2025/08/05 15:16:33 by ylenoel          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -69,6 +69,22 @@ void Channel::setModeI(bool mode) {_modeI = mode;}
 const bool& Channel::getModeT() const {return _modeT;}
 
 void Channel::setModeT(bool mode) {_modeT = mode;}
+
+const bool& Channel::getModeK() const {return _modeK;}
+
+void Channel::setModeK(bool mode) {_modeK = mode;}
+
+const bool& Channel::getModeL() const {return _modeL;}
+
+void Channel::setModeL(bool mode) {_modeL = mode;}
+
+const std::string& Channel::getPass() const {return _pass;}
+
+void Channel::setPass(const std::string& pass) {_pass = pass;}
+
+const int& Channel::getUserLimit() const {return _userLimit;}
+
+void Channel::setUserLimit(const int& limit) {_userLimit = limit;}
 
 const set<int>& Channel::getAuthorizedClients() const {return _authorizedClients;}
 
