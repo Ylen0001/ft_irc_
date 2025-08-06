@@ -6,7 +6,7 @@
 /*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/15 14:33:42 by yoann             #+#    #+#             */
-/*   Updated: 2025/08/05 17:30:55 by ylenoel          ###   ########.fr       */
+/*   Updated: 2025/08/06 15:52:35 by ylenoel          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -96,12 +96,15 @@ void Server::handleNICK(Client &client, std::string &arg)
     client.setNickname(newNickname);
 
     // Envoi du message NICK à tous les clients (y compris celui qui change)
-    std::string prefix = ":" + oldNickname;
-    std::string message = prefix + " NICK :" + newNickname + "\r\n";
+   	if (client.isRegistered()){
+		std::string prefix = ":" + oldNickname + "!" + client.getUsername() + "@" + client.getHostname();
 
-    for (ClientMap::iterator cit = _db_clients.begin(); cit != _db_clients.end(); ++cit) {
-        sendToClient(cit->second, message);
-    }
+    	std::string message = prefix + " NICK :" + newNickname + "\r\n";
+
+    	for (ClientMap::iterator cit = _db_clients.begin(); cit != _db_clients.end(); ++cit) {
+        	sendToClient(cit->second, message);
+    	}
+	}
 
     if (!client.getUsername().empty() && !client.getRealname().empty() && !client.isRegistered()) {
         client.setRegistration(true);
@@ -120,28 +123,28 @@ void Server::handleQUIT(Client& client, std::string& arg)
     // Message de départ par défaut si absent
     std::string quitMsg = "Client Quit";
     if (!arg.empty()) {
-        // arg commence souvent par ':', on enlève le ':' si présent
         if (arg[0] == ':')
             quitMsg = arg.substr(1);
         else
             quitMsg = arg;
     }
 
-    // Construire le message QUIT à envoyer aux autres clients dans les mêmes channels
-    std::string quitNotice = ":" + client.getPrefix() + " QUIT :" + quitMsg + "\r\n";
+    // ✅ Sauvegarde le prefix AVANT de supprimer le client
+    std::string prefix = client.getPrefix();
 
-    // Informer tous les clients dans les channels du client
-    // Ici, on peut appeler une méthode qui parcourt tous les channels et broadcast
+    // Construire le message QUIT à envoyer aux autres clients
+    std::string quitNotice = ":" + prefix + " QUIT :" + quitMsg + "\r\n";
+
+    // Informer tous les clients dans les channels
     removeClientFromAllChannelsWithNotice(client.getFd(), quitNotice);
 
-    // Retirer le client du serveur
+    // ✅ Supprime le client après avoir utilisé ses infos
     removeClient(client.getFd());
 
-    // Ici, potentiellement fermer la connexion / cleanup, selon l’architecture
-
-    // Optionnel : logger la déconnexion
-    std::cout << client.getPrefix() << " has quit (" << quitMsg << ")" << std::endl;
+    // ✅ Utilisation sûre après suppression
+    std::cout << prefix << " has quit (" << quitMsg << ")" << std::endl;
 }
+
 
 
 void Server::handlePART(Client &client, std::string& arg)
@@ -330,95 +333,6 @@ void Server::handleJOIN(Client& client, std::string& arg)
 	// (Tu peux l’ajouter plus tard si pas encore implémenté)
 }
 
-
-// void Server::handlePRIVMSG(Client& sender, std::string& msg)
-// {
-// 	// Format attendu : PRIVMSG <target> :<message>
-
-// 	// Séparation target + message
-// 	std::cout << "RAW PRIVMSG received: [" << msg << "]" << std::endl;
-
-//     size_t firstSpace = msg.find(' ');
-//     if (firstSpace == std::string::npos) {
-//         sendToClient(sender, buildErrorString(411, ":No recipient given (PRIVMSG)"));
-//         return;
-//     }
-
-//     std::string target = msg.substr(0, firstSpace);
-//     if (!target.empty() && target[0] == ':') {
-//         std::cout << "[handlePRIVMSG] Target has leading colon, stripping it." << std::endl;
-//         target = target.substr(1);
-//     }
-
-//     if (target.empty()) {
-//         sendToClient(sender, buildErrorString(411, ":No recipient given (PRIVMSG)"));
-//         return;
-//     }
-
-//     std::cout << "Target parsed: [" << target << "]";
-
-//     size_t colonPos = msg.find(":", firstSpace);
-//     if (colonPos == std::string::npos || colonPos + 1 >= msg.length()) {
-//         sendToClient(sender, buildErrorString(412, ":No text to send"));
-//         return;
-//     }
-
-//     std::string message = msg.substr(colonPos + 1);
-//     if (message.empty()) {
-//         sendToClient(sender, buildErrorString(412, ":No text to send"));
-//         return;
-//     }
-//     std::cout << ", Message parsed: [" << message << "]" << std::endl;
-
-// 	// Si channel
-// 	if (target[0] == '#')
-// 	{
-// 		ChannelMap::iterator chanIt = _channels.find(target);
-// 		if (chanIt == _channels.end())
-// 		{
-// 			sendToClient(sender, buildErrorString(403, target + " :No such channel"));
-// 			return;
-// 		}
-
-// 		Channel& channel = chanIt->second;
-// 		if (!channel.hasClient(sender.getFd()))
-// 		{
-// 			sendToClient(sender, buildErrorString(404, target + " :Cannot send to channel"));
-// 			return;
-// 		}
-		
-// 		std::cout << "[handlePRIVMSG] sender.getPrefix() = [" << sender.getPrefix() << "]" << std::endl;
-// 		std::string fullMsg = sender.getPrefix() + " PRIVMSG " + target + " :" + message + "\r\n";
-// 		channel.broadcast(fullMsg, sender.getFd());
-// 	}
-// 	else
-// 	{
-// 		// Sinon, c'est un user
-// 		Client* recipient = NULL;
-// 		for (ClientMap::iterator it = _db_clients.begin(); it != _db_clients.end(); ++it)
-// 		{
-// 			if (it->second.getNickname() == target)
-// 			{
-// 				recipient = &(it->second);
-// 				break;
-// 			}
-// 		}
-
-// 		if (!recipient)
-// 		{
-// 			sendToClient(sender, buildErrorString(401, target + " :No such nick/channel"));
-// 			return;
-// 		}
-// 		int recipientFd = recipient->getFd();
-// 		std::string fullMsg = ":" + sender.getPrefix() + " PRIVMSG " + target + " :" + message + "\r\n";
-// 		ssize_t bytes = write(recipientFd, fullMsg.c_str(), fullMsg.size());
-// 		std::cout << "[handlePRIVMSG] Wrote " << bytes << " bytes to fd " << recipientFd << std::endl;
-// 		// std::string fullMsg = ":" + sender.getPrefix() + " PRIVMSG " + target + " :" + message + "\r\n";
-// 		sendToClient(*recipient, fullMsg);
-// 	}
-// }
-
-
 void Server::handlePRIVMSG(Client& sender, std::string& msg)
 {
     // msg contient tout ce qui suit "PRIVMSG ", exemple : "#42 :Hello world"
@@ -426,13 +340,17 @@ void Server::handlePRIVMSG(Client& sender, std::string& msg)
 
     std::string target;
     ss >> target;  // cible : channel ou nick
-	if (!target.empty() && target[0] == ':')
-    	target = target.substr(1);
-
-    if (target.empty()) {
+	if (target.empty() || target[0] == ':') {
         sendToClient(sender, buildErrorString(411, ":No recipient given (PRIVMSG)"));
         return;
     }
+	// if (!target.empty() && target[0] == ':')
+    // 	target = target.substr(1);
+
+    // if (target.empty()) {
+    //     sendToClient(sender, buildErrorString(411, ":No recipient given (PRIVMSG)"));
+    //     return;
+    // }
 
     // Récupérer le reste (le message) après la cible, y compris les espaces
     std::string restOfLine;
@@ -700,129 +618,6 @@ void Server::handleINVITE(Client& client, std::string& arg)
 	// 5 - On add le client invité à la listes des authorizedClients du channel
 	chanIt->second.addAuthorizedClient(clientIt->second.getFd());
 }
-
-
-
-// void Server::handleMODE(Client &client, std::string& arg)
-// {
-// 	if (arg.empty()) {
-// 		sendToClient(client, buildErrorString(461, "MODE :Not enough parameters"));
-// 		return;
-// 	}
-
-// 	std::stringstream ss(arg);
-// 	std::string target;
-// 	ss >> target;
-
-// 	if (target.empty()) {
-// 		sendToClient(client, buildErrorString(461, "MODE :Not enough parameters"));
-// 		return;
-// 	}
-
-// 	// Si la cible est un utilisateur (nick)
-// 	if (target == client.getNickname()) {
-// 		// Si aucun autre argument → afficher les modes de l'utilisateur
-// 		if (ss.rdbuf()->in_avail() == 0) {
-// 			std::string userModes = "+i"; // Si tu veux plus tard gérer dynamiquement les modes utilisateur, remplace ici
-// 			std::string reply = ":" + getServerHostName() + " 221 " + client.getNickname() + " " + userModes + "\r\n";
-// 			sendToClient(client, reply);
-// 			return;
-// 		} else {
-// 			// Si d'autres arguments → changement de mode utilisateur non supporté
-// 			sendToClient(client, buildErrorString(501, " :User mode changes not supported"));
-// 			return;
-// 		}
-// 	}
-
-// 	// Si la cible est un canal
-// 	if (target[0] == '#') {
-// 		// Récupérer le reste de la ligne après le target
-// 		std::string rest;
-// 		std::getline(ss, rest);
-// 		if (!rest.empty() && rest[0] == ' ')
-// 			rest = rest.substr(1);
-
-// 		// Recherche du canal
-// 		ChannelMap::iterator chanIt = _channels.find(target);
-// 		if (chanIt == _channels.end()) {
-// 			sendToClient(client, buildErrorString(403, target + " :No such channel"));
-// 			return;
-// 		}
-
-// 		// Si pas de mode donné, on renvoie le mode courant du channel
-// 		if (rest.empty()) {
-// 			std::string msg = getServerHostName() + " 324 " + client.getNickname() + " " + target;
-// 			std::string modeMsg;
-// 			if (chanIt->second.getModeI() && chanIt->second.getModeT())
-// 				modeMsg = " +it\r\n";
-// 			else if (chanIt->second.getModeI())
-// 				modeMsg = " +i\r\n";
-// 			else if (chanIt->second.getModeT())
-// 				modeMsg = " +t\r\n";
-// 			else
-// 				modeMsg = " +\r\n";
-// 			sendToClient(client, msg + modeMsg);
-// 			return;
-// 		}
-
-// 		// Vérifie que le client est opérateur sur le channel pour modifier les modes
-// 		if (!chanIt->second.isOperator(client.getFd())) {
-// 			sendToClient(client, buildErrorString(482, target + " :You're not channel operator"));
-// 			return;
-// 		}
-
-// 		// Parsing du mode (exemple: +it, -o nick)
-// 		std::stringstream modeStream(rest);
-// 		std::string mode, nick;
-// 		modeStream >> mode >> nick;
-
-// 		if (mode.size() < 2 || (mode[0] != '+' && mode[0] != '-')) {
-// 			sendToClient(client, buildErrorString(501, mode + " :Unknown MODE flag"));
-// 			return;
-// 		}
-
-// 		bool adding = (mode[0] == '+');
-
-// 		for (size_t i = 1; i < mode.size(); ++i) {
-// 			char flag = mode[i];
-
-// 			if (flag == 'i') {
-// 				chanIt->second.setInviteOnly(adding);
-// 			}
-// 			else if (flag == 't') {
-// 				chanIt->second.setTopicRestricted(adding);
-// 			}
-// 			else if (flag == 'o') {
-// 				if (nick.empty()) {
-// 					sendToClient(client, buildErrorString(461, "MODE :Not enough parameters"));
-// 					return;
-// 				}
-// 				ClientMap::iterator targetIt = getClientByNickName(nick);
-// 				if (targetIt == _db_clients.end()) {
-// 					sendToClient(client, buildErrorString(401, nick + " :No such nickname"));
-// 					return;
-// 				}
-// 				int targetFd = targetIt->second.getFd();
-// 				if (!chanIt->second.hasClient(targetFd)) {
-// 					sendToClient(client, buildErrorString(441, nick + " " + target + " :They aren't on that channel"));
-// 					return;
-// 				}
-// 				if (adding)
-// 					chanIt->second.addOperators(targetFd);
-// 				else
-// 					chanIt->second.removeOperator(targetFd);
-// 			}
-// 			else {
-// 				sendToClient(client, buildErrorString(501, std::string(1, flag) + " :Unknown MODE flag"));
-// 				return;
-// 			}
-// 		}
-// 	}
-// 	// Sinon, la cible est invalide
-// 	else {
-// 		sendToClient(client, buildErrorString(501, " :Unknown MODE flag"));
-// 	}
-// }
 
 
 void Server::handleMODE(Client &client, std::string& arg)

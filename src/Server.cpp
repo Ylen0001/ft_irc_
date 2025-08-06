@@ -6,7 +6,7 @@
 /*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/09 15:45:29 by ylenoel           #+#    #+#             */
-/*   Updated: 2025/08/05 17:20:55 by ylenoel          ###   ########.fr       */
+/*   Updated: 2025/08/06 14:32:37 by ylenoel          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -161,10 +161,10 @@ void Server::run()
 			std::memset(buffer, 0, sizeof(buffer)); // C++98 style
 
 			int bytes = recv(client_fd, buffer, sizeof(buffer), 0);
-			if (bytes <= 0)
+			if (bytes <= 0) // Si le client n'envoie plus rien, on supprime.
 			{
 				std::cout << "Client disconnected" << std::endl;
-				removeClient(client_fd); // close déjà fait ici
+				removeClient(client_fd);
 				--i;
 			}
 			else
@@ -180,17 +180,33 @@ void Server::run()
 				std::string& fullBuffer = client.getBuffer();
 				size_t pos;
 
-				// Parse toutes les lignes IRC
-				while ((pos = fullBuffer.find("\r\n")) != std::string::npos)
+				while ((pos = fullBuffer.find_first_of("\r\n")) != std::string::npos)
 				{
 					std::string line = fullBuffer.substr(0, pos);
-					fullBuffer.erase(0, pos + 2);  // Supprime la ligne + \r\n
+					fullBuffer.erase(0, pos + 1);
+
+					// Si \r\n, alors skip le \n aussi
+					if (!fullBuffer.empty() && fullBuffer[0] == '\n')
+						fullBuffer.erase(0, 1);
 
 					std::cout << "Client sent: " << line << std::endl;
+
 					handleMessage(client, line);
-					if(_db_clients.find(client_fd) == _db_clients.end())
+
+					if (_db_clients.find(client_fd) == _db_clients.end())
 						break;
 				}
+				// Parse toutes les lignes IRC
+				// while ((pos = fullBuffer.find("\r\n")) != std::string::npos)
+				// {
+				// 	std::string line = fullBuffer.substr(0, pos);
+				// 	fullBuffer.erase(0, pos + 2);  // Supprime la ligne + \r\n
+
+				// 	std::cout << "Client sent: " << line << std::endl;
+				// 	handleMessage(client, line);
+				// 	if(_db_clients.find(client_fd) == _db_clients.end())
+				// 		break;
+				// }
 			}
 
 			_pollfds[i].revents = 0;
@@ -240,26 +256,6 @@ bool Server::sendToClient(const Client &client, const std::string &msg)
 	}
 	return true;
 }
-
-// bool Server::sendToClient(const Client &client, const std::string &msg) {
-// 	size_t totalSent = 0;
-// 	size_t toSend = msg.length();
-
-// 	while (totalSent < toSend) {
-// 		ssize_t sent = send(client.getFd(), msg.c_str() + totalSent,
-// 							toSend - totalSent, 0);
-// 		if (sent < 0) {
-// 				std::cerr << "[Error] Failed to send to client "
-// 						  << client.getFd() << ": " << strerror(errno)
-// 						  << std::endl;
-
-// 				// Gestion d'erreurs à implémenter ici
-// 				return false;
-// 		}
-// 		totalSent += sent;
-// 	}
-// 	return true;
-// }
 
 void Server::setNonBlocking(int fd) {
 	int flags = fcntl(fd, F_GETFL, 0);
@@ -385,8 +381,10 @@ void Server::handleMessage(Client& client, const std::string& msg)
 		rest.clear();  // Que des espaces
 
 	// Toujours enlever ':' initial dans rest (utile pour PRIVMSG et autres)
-	if (!rest.empty() && rest[0] == ':')
-		rest = rest.substr(1);
+	if (command != "PRIVMSG" && command != "NOTICE"){
+		if (!rest.empty() && rest[0] == ':')
+			rest = rest.substr(1);
+	}
 
 	std::cout << "[handleMessage] Command: [" << command << "] Arg: [" << rest << "]" << std::endl;
 

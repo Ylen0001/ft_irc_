@@ -93,3 +93,4 @@ POUR LA PROCHAINE SESSION :
 05/07 : COMPATIBILITÉ IRSSI
 
 - Ajout du mode K/L dans handleMODE
+- L'ENFER DE DEBUG DE PRIVMSG à cause de : dans getPrefix tamere.
