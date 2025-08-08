@@ -94,3 +94,8 @@ POUR LA PROCHAINE SESSION :
 
 - Ajout du mode K/L dans handleMODE
 - L'ENFER DE DEBUG DE PRIVMSG à cause de : dans getPrefix tamere.
+
+08/07 :
+
+- Vérification de synthaxe de NickName avec isValidNickname().
+-

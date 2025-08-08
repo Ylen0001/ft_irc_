@@ -6,7 +6,7 @@
 /*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/09 15:45:29 by ylenoel           #+#    #+#             */
-/*   Updated: 2025/08/06 14:32:37 by ylenoel          ###   ########.fr       */
+/*   Updated: 2025/08/08 17:44:40 by ylenoel          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -26,12 +26,12 @@ Server::Server(int port, string password) : _serverHostName("Server ft_irc"), _p
 	_cmd_map["PART"] = &Server::handlePART;
 	_cmd_map["PRIVMSG"] = &Server::handlePRIVMSG;
 	_cmd_map["NOTICE"] = &Server::handleNOTICE;
-	// _cmd_map["PING"] = &Server::handlePING;
-	// _cmd_map["PONG"] = &Server::handlePONG;
-	// _cmd_map["KICK"] = &Server::handleKICK;
-	// _cmd_map["TOPIC"] = &Server::handleTOPIC;
-	// _cmd_map["INVITE"] = &Server::handleINVITE;
-	// _cmd_map["MODE"] = &Server::handleMODE;
+	_cmd_map["PING"] = &Server::handlePING;
+	_cmd_map["PONG"] = &Server::handlePONG;
+	_cmd_map["KICK"] = &Server::handleKICK;
+	_cmd_map["TOPIC"] = &Server::handleTOPIC;
+	_cmd_map["INVITE"] = &Server::handleINVITE;
+	_cmd_map["MODE"] = &Server::handleMODE;
 	
 }
 
@@ -400,7 +400,7 @@ void Server::handleMessage(Client& client, const std::string& msg)
 	}
 
 	// Vérifie que le mot de passe est bien passé avant toute autre commande
-	if (!client.getHasPassword() && command != "PASS") {
+	if (!client.getHasPassword() && command != "PASS" && command != "QUIT") {
 		sendToClient(client, buildErrorString(451, "* :You have not registered"));
 		return;
 	}
@@ -521,3 +521,46 @@ std::ostream& operator<<(std::ostream& out, const Server& Server)
 	return out;
 }
 
+bool Server::isValidNickname(const std::string& nick) {
+    if (nick.empty())
+        return false;
+
+    // Premier caractère valide
+    char first = nick[0];
+    if (!(
+        (first >= 'A' && first <= 'Z') ||
+        (first >= 'a' && first <= 'z') ||
+        first == '[' || first == ']' || first == '\\' || first == '^' ||
+        first == '_' || first == '{' || first == '|' || first == '}'
+    )) return false;
+
+    // Les caractères suivants
+    for (size_t i = 1; i < nick.size(); ++i) {
+        char c = nick[i];
+        if (!(
+            (c >= 'A' && c <= 'Z') ||
+            (c >= 'a' && c <= 'z') ||
+            (c >= '0' && c <= '9') ||
+            c == '[' || c == ']' || c == '\\' || c == '^' ||
+            c == '_' || c == '{' || c == '|' || c == '}' || c == '-'
+        )) return false;
+    }
+
+    // Optionnel: longueur max
+    if (nick.size() > 9)
+        return false;
+
+    return true;
+}
+
+std::string Server::trim_spaces(const std::string &s) {
+    size_t start = 0;
+    while (start < s.size() && std::isspace(static_cast<unsigned char>(s[start])))
+        ++start;
+    if (start == s.size())
+        return std::string();
+    size_t end = s.size() - 1;
+    while (end > start && std::isspace(static_cast<unsigned char>(s[end])))
+        --end;
+    return s.substr(start, end - start + 1);
+}

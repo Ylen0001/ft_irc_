@@ -6,7 +6,7 @@
 /*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/09 15:28:05 by ylenoel           #+#    #+#             */
-/*   Updated: 2025/08/05 10:49:15 by ylenoel          ###   ########.fr       */
+/*   Updated: 2025/08/08 16:29:01 by ylenoel          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -26,6 +26,7 @@
 #include <cstring>
 #include <poll.h>
 #include <algorithm>
+#include <cctype>
 #include "Client.hpp"
 #include <sstream>
 #include <map>
@@ -119,6 +120,8 @@ class Server
 		string getServerHostName() const;
 		size_t getClientCount() const;
 		string getPassword() const;
+		bool isValidNickname(const std::string& nick);
+		std::string trim_spaces(const std::string &s);
 		bool sendToClient(const Client& client, const std::string& msg);
 		const std::vector<pollfd>& getPollFds() const;
 		const std::map<int, Client>& getClients() const;

@@ -6,7 +6,7 @@
 /*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/15 14:33:42 by yoann             #+#    #+#             */
-/*   Updated: 2025/08/06 15:52:35 by ylenoel          ###   ########.fr       */
+/*   Updated: 2025/08/08 17:55:31 by ylenoel          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -84,6 +84,12 @@ void Server::handleNICK(Client &client, std::string &arg)
         return;
     }
 
+
+    if (!isValidNickname(newNickname)) {
+        sendToClient(client, buildErrorString(432, newNickname + " :Erroneous nickname"));
+        return;
+    }
+
     // Check if nickname is already in use
     const ClientMap::iterator it = std::find_if(_db_clients.begin(), _db_clients.end(), MatchNickname(newNickname));
     if (it != _db_clients.end()) {
@@ -115,8 +121,8 @@ void Server::handleNICK(Client &client, std::string &arg)
 
 void Server::handleQUIT(Client& client, std::string& arg)
 {
-    if (!client.isRegistered()) {
-        sendToClient(client, buildErrorString(451, " QUIT :You have not registered"));
+    if (!client.isRegistered() || !client.getHasPassword()) {
+        removeClient(client.getFd());
         return;
     }
 
@@ -132,8 +138,14 @@ void Server::handleQUIT(Client& client, std::string& arg)
     // ✅ Sauvegarde le prefix AVANT de supprimer le client
     std::string prefix = client.getPrefix();
 
+    // 🔹 Limiter la longueur totale à 512 octets (RFC 1459)
+    std::string base = ":" + prefix + " QUIT :";
+    size_t maxMsgLen = 512 - 2 /* CRLF */ - base.size();
+    if (quitMsg.size() > maxMsgLen)
+        quitMsg = quitMsg.substr(0, maxMsgLen);
+
     // Construire le message QUIT à envoyer aux autres clients
-    std::string quitNotice = ":" + prefix + " QUIT :" + quitMsg + "\r\n";
+    std::string quitNotice = base + quitMsg + "\r\n";
 
     // Informer tous les clients dans les channels
     removeClientFromAllChannelsWithNotice(client.getFd(), quitNotice);
@@ -144,6 +156,7 @@ void Server::handleQUIT(Client& client, std::string& arg)
     // ✅ Utilisation sûre après suppression
     std::cout << prefix << " has quit (" << quitMsg << ")" << std::endl;
 }
+
 
 
 
@@ -237,101 +250,124 @@ void Server::handlePASS(Client &client, std::string& arg)
 	}
 }
 
-
-void Server::handleUSER(Client &client, std::string& arg) 
+void Server::handleUSER(Client &client, std::string &arg) 
 {
-	std::cout << "[handleUSER] arg = [" << arg << "]" << std::endl;
+    std::cout << "[handleUSER] arg = [" << arg << "]" << std::endl;
 
-	if (!client.getHasPassword()) {
-		sendToClient(client, buildErrorString(451, "You have not registered"));
-		return;
-	}
-	else if(client.isRegistered()){
-		sendToClient(client, buildErrorString(462, "* :You may not reregister"));
-		return;
-	}
+    if (!client.getHasPassword()) {
+        sendToClient(client, buildErrorString(451, "You have not registered"));
+        return;
+    }
+    // Empêcher plusieurs USER (reregistration)
+    if (!client.getUsername().empty()) {
+        sendToClient(client, buildErrorString(462, "* :You may not reregister"));
+        return;
+    }
 
-	stringstream ss(arg);
-	string username, hostname, servername, realname;
-	//This is why we prefer stringstream over string when extracting multiple words
-	ss >> username >> hostname >> servername;
+    std::stringstream ss(arg);
+    std::string username, hostname, servername;
+    ss >> username >> hostname >> servername;
 
+    // Extraire tout ce qui suit le ':' comme realname (incluant espaces)
+    std::string realname;
+    size_t colonPos = arg.find(':');
+    if (colonPos != std::string::npos) {
+        realname = arg.substr(colonPos + 1);
+    }
 
-	size_t colonPos = arg.find_first_of(":");
-	if (colonPos != std::string::npos)
-		realname = arg.substr(colonPos + 1);
-	else 
-		realname = arg.substr(arg.find_first_of(":"));
-		
-	if (username.empty() || realname.empty()) {
-		sendToClient(client, "461 USER :Not enough parameters\r\n");
-		return;
-	}
+    // Trim espaces en tête/queue — si après trim realname vide => erreur 461
+    realname = trim_spaces(realname);
 
-	client.setUsername(username);
-	client.setRealname(realname);
+    if (username.empty() || realname.empty()) {
+        sendToClient(client, buildErrorString(461, "USER :Not enough parameters"));
+        return;
+    }
 
-	// Vérifie si l'utilisateur peut maintenant être considéré comme "registered"
-	if (!client.getNickname().empty()
-		&& !client.getUsername().empty()
-		&& !client.getRealname().empty()
-		&& !client.isRegistered())
-	{
-		client.setRegistration(true);
-		sendWelcome(client);
-	}
-	// And if not ? what do you do ?
+    // Optionnel : validation username (exemple simple)
+    if (username.length() > 9 || username.find(' ') != std::string::npos) {
+        sendToClient(client, buildErrorString(432, username + " :Erroneous username"));
+        return;
+    }
+    for (size_t i = 0; i < username.size(); ++i) {
+        char c = username[i];
+        if (!std::isalnum(static_cast<unsigned char>(c)) && c != '-' && c != '_' && c != '\\' && c != '[' && c != ']') {
+            sendToClient(client, buildErrorString(432, username + " :Erroneous username"));
+            return;
+        }
+    }
+
+    client.setUsername(username);
+    client.setRealname(realname);
+
+    if (!client.getNickname().empty() && !client.isRegistered()) {
+        client.setRegistration(true);
+        sendWelcome(client);
+    }
 }
+
 
 void Server::handleJOIN(Client& client, std::string& arg)
 {
-	if(!client.isRegistered()){
-		sendToClient(client, buildErrorString(451, " JOIN :You have not registered"));
-		return;
-	}
+	std::cout << "Received JOIN command from client " << client.getNickname() << " with arg: " << arg << std::endl;
+    if (!client.isRegistered()) {
+        sendToClient(client, buildErrorString(451, "JOIN :You have not registered"));
+        return;
+    }
 
-	if(arg.empty()){
-		sendToClient(client, buildErrorString(461, " JOIN :Not enough parameters"));
-		return;
-	}
-	
-	if(arg[0] != '#'){
-		sendToClient(client, buildErrorString(476, ":Invalid channel name"));
-		return;
-	}
-	
-	// 4. Récupérer ou créer le channel
-	std::map<std::string, Channel>::iterator it = _channels.find(arg);
-	if (it == _channels.end()) {
-		// Channel inexistant, on le crée
-		_channels.insert(std::make_pair(arg, Channel(arg, this)));
-		it = _channels.find(arg); // On récupère l'emplacement du nouveau Channel sur it.
-		it->second.addOperators(client.getFd());
-	}
+    if (arg.empty()) {
+        sendToClient(client, buildErrorString(461, "JOIN :Not enough parameters"));
+        return;
+    }
 
-	Channel &channel = it->second; // Raccourci pour une référence sur le channel pointé par it->second dans la map
-	
-	// Si le channel est en mode +i (Invitation only).
-	if(channel.getModeI() && channel.getAuthorizedClients().find(client.getFd()) == channel.getAuthorizedClients().end()){
-		sendToClient(client, buildErrorString(473, channel.getName() + ":Cannot join channel (+i)"));
-		return;
-	}
-	
-	// 5. Ajouter le client au channel
-	if (channel.hasClient(client.getFd())) {
-		// Il est déjà dans le channel, rien à faire
-		return;
-	}
+    // Extraire uniquement le premier mot avant un espace
+    std::string chanName = arg.substr(0, arg.find(' '));
 
-	channel.addClient(&client);
+    // Vérification syntaxe RFC 2812
+    if (chanName[0] != '#') {
+        sendToClient(client, buildErrorString(476, chanName + " :Invalid channel name"));
+        return;
+    }
+    if (chanName.size() > 50) {
+        sendToClient(client, buildErrorString(476, chanName + " :Channel name too long"));
+        return;
+    }
+    for (size_t i = 0; i < chanName.size(); ++i) {
+        char c = chanName[i];
+        if (c == ' ' || c == ',' || c == ':' || c == 7) { // 7 = ^G (Bell)
+            sendToClient(client, buildErrorString(476, chanName + " :Invalid channel name"));
+            return;
+        }
+    }
 
-	// 6. Notifier tous les clients du channel
-	std::string joinMsg = ":" + client.getPrefix() + " JOIN " + arg;
-	channel.broadcast(joinMsg);
+    // Chercher ou créer le channel
+    std::map<std::string, Channel>::iterator it = _channels.find(chanName);
+    if (it == _channels.end()) {
+        _channels.insert(std::make_pair(chanName, Channel(chanName, this)));
+        it = _channels.find(chanName);
+        it->second.addOperators(client.getFd());
+    }
 
-	// 7. Envoyer le topic et la liste des utilisateurs
-	// (Tu peux l’ajouter plus tard si pas encore implémenté)
+    Channel &channel = it->second;
+
+    // Mode +i : accès sur invitation uniquement
+    if (channel.getModeI() && channel.getAuthorizedClients().find(client.getFd()) == channel.getAuthorizedClients().end()) {
+        sendToClient(client, buildErrorString(473, channel.getName() + " :Cannot join channel (+i)"));
+        return;
+    }
+
+    if (channel.hasClient(client.getFd())) {
+        return; // déjà présent
+    }
+
+    channel.addClient(&client);
+
+    // Notification aux autres clients
+    std::string joinMsg = ":" + client.getPrefix() + " JOIN " + chanName;
+    channel.broadcast(joinMsg);
+
+    // Si tu veux, tu peux déjà envoyer le topic/liste utilisateurs ici
 }
+
 
 void Server::handlePRIVMSG(Client& sender, std::string& msg)
 {
@@ -766,3 +802,4 @@ void Server::handleMODE(Client &client, std::string& arg)
 		sendToClient(client, buildErrorString(501, " :Unknown MODE flag"));
 	}
 }
+
