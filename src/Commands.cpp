@@ -6,7 +6,7 @@
 /*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/15 14:33:42 by yoann             #+#    #+#             */
-/*   Updated: 2025/08/08 17:55:31 by ylenoel          ###   ########.fr       */
+/*   Updated: 2025/08/12 11:03:20 by ylenoel          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -145,7 +145,7 @@ void Server::handleQUIT(Client& client, std::string& arg)
         quitMsg = quitMsg.substr(0, maxMsgLen);
 
     // Construire le message QUIT à envoyer aux autres clients
-    std::string quitNotice = base + quitMsg + "\r\n";
+    std::string quitNotice = base + quitMsg;
 
     // Informer tous les clients dans les channels
     removeClientFromAllChannelsWithNotice(client.getFd(), quitNotice);

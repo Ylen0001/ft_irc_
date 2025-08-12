@@ -6,7 +6,7 @@
 /*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/09 15:45:29 by ylenoel           #+#    #+#             */
-/*   Updated: 2025/08/08 17:44:40 by ylenoel          ###   ########.fr       */
+/*   Updated: 2025/08/12 11:03:11 by ylenoel          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -327,13 +327,15 @@ void Server::removeClientFromAllChannels(int fd)
 
 void Server::removeClientFromAllChannelsWithNotice(int fd, const std::string& notice)
 {
-    for (ChannelMap::iterator it = _channels.begin(); it != _channels.end(); )
+	for (ChannelMap::iterator it = _channels.begin(); it != _channels.end(); )
     {
         Channel& channel = it->second;
 
         if (channel.hasClient(fd))
         {
-            channel.broadcast(notice, fd);  // Envoyer à tous sauf celui qui part
+			std::string partMsg = ":" + getClientByFd(fd)->second.getPrefix() + " PART " + channel.getName();
+            channel.broadcast(partMsg, fd);  // Envoyer à tous sauf celui qui part
+			channel.broadcast(notice, fd);
             channel.removeClient(fd);
         }
 
