@@ -6,7 +6,7 @@
 /*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/10 15:29:15 by ylenoel           #+#    #+#             */
-/*   Updated: 2025/07/23 12:49:39 by ylenoel          ###   ########.fr       */
+/*   Updated: 2025/08/12 13:19:52 by ylenoel          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -52,6 +52,8 @@ class Client
 	bool isRegistered() const;
 	bool getHasPassword() const;
 	void setHasPassword(bool val);
+
+	void clearBuffer();
 	
 	void setRegistration(const bool value);
 

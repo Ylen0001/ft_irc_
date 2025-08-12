@@ -6,7 +6,7 @@
 /*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/15 14:33:42 by yoann             #+#    #+#             */
-/*   Updated: 2025/08/12 11:03:20 by ylenoel          ###   ########.fr       */
+/*   Updated: 2025/08/12 16:33:58 by ylenoel          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -308,7 +308,8 @@ void Server::handleUSER(Client &client, std::string &arg)
 
 void Server::handleJOIN(Client& client, std::string& arg)
 {
-	std::cout << "Received JOIN command from client " << client.getNickname() << " with arg: " << arg << std::endl;
+    std::cout << "Received JOIN command from client " << client.getNickname() << " with arg: " << arg << std::endl;
+
     if (!client.isRegistered()) {
         sendToClient(client, buildErrorString(451, "JOIN :You have not registered"));
         return;
@@ -319,54 +320,179 @@ void Server::handleJOIN(Client& client, std::string& arg)
         return;
     }
 
-    // Extraire uniquement le premier mot avant un espace
-    std::string chanName = arg.substr(0, arg.find(' '));
+    // On peut avoir un deuxième paramètre avec les clés, séparé par espace
+    // Exemple : JOIN #chan1,#chan2 key1,key2
+    std::string chansPart;
+    std::string keysPart;
+    size_t spacePos = arg.find(' ');
+    if (spacePos != std::string::npos) {
+        chansPart = arg.substr(0, spacePos);
+        keysPart = arg.substr(spacePos + 1);
+    } else {
+        chansPart = arg;
+    }
 
-    // Vérification syntaxe RFC 2812
-    if (chanName[0] != '#') {
-        sendToClient(client, buildErrorString(476, chanName + " :Invalid channel name"));
-        return;
+    // Séparer canaux et clés en vecteurs
+    std::vector<std::string> channels;
+    std::stringstream ss(chansPart);
+    std::string chanName;
+    while (std::getline(ss, chanName, ',')) {
+        chanName.erase(0, chanName.find_first_not_of(" \t\r\n"));
+        chanName.erase(chanName.find_last_not_of(" \t\r\n") + 1);
+        if (!chanName.empty())
+            channels.push_back(chanName);
     }
-    if (chanName.size() > 50) {
-        sendToClient(client, buildErrorString(476, chanName + " :Channel name too long"));
-        return;
-    }
-    for (size_t i = 0; i < chanName.size(); ++i) {
-        char c = chanName[i];
-        if (c == ' ' || c == ',' || c == ':' || c == 7) { // 7 = ^G (Bell)
-            sendToClient(client, buildErrorString(476, chanName + " :Invalid channel name"));
-            return;
+
+    std::vector<std::string> keys;
+    if (!keysPart.empty()) {
+        std::stringstream ssKeys(keysPart);
+        std::string key;
+        while (std::getline(ssKeys, key, ',')) {
+            key.erase(0, key.find_first_not_of(" \t\r\n"));
+            key.erase(key.find_last_not_of(" \t\r\n") + 1);
+            keys.push_back(key);
         }
     }
 
-    // Chercher ou créer le channel
-    std::map<std::string, Channel>::iterator it = _channels.find(chanName);
-    if (it == _channels.end()) {
-        _channels.insert(std::make_pair(chanName, Channel(chanName, this)));
-        it = _channels.find(chanName);
-        it->second.addOperators(client.getFd());
+    // Parcourir tous les channels et traiter chacun
+    for (size_t i = 0; i < channels.size(); ++i) {
+        const std::string& chan = channels[i];
+        std::string key = (i < keys.size()) ? keys[i] : "";
+
+        // Vérifications syntaxe RFC 2812
+        if (chan.empty() || chan[0] != '#') {
+            sendToClient(client, buildErrorString(476, chan + " :Invalid channel name"));
+            continue;
+        }
+        if (chan.size() > 50) {
+            sendToClient(client, buildErrorString(476, chan + " :Channel name too long"));
+            continue;
+        }
+        bool invalidChar = false;
+        for (size_t c = 0; c < chan.size(); ++c) {
+            char ch = chan[c];
+            if (ch == ' ' || ch == ',' || ch == ':' || ch == 7) {
+                invalidChar = true;
+                break;
+            }
+        }
+        if (invalidChar) {
+            sendToClient(client, buildErrorString(476, chan + " :Invalid channel name"));
+            continue;
+        }
+
+        // Chercher ou créer channel
+        std::map<std::string, Channel>::iterator it = _channels.find(chan);
+        if (it == _channels.end()) {
+            _channels.insert(std::make_pair(chan, Channel(chan, this)));
+            it = _channels.find(chan);
+            it->second.addOperators(client.getFd());
+        }
+        Channel &channel = it->second;
+
+        // Gestion mode +i : invitation uniquement
+        if (channel.getModeI() && channel.getAuthorizedClients().find(client.getFd()) == channel.getAuthorizedClients().end()) {
+            sendToClient(client, buildErrorString(473, chan + " :Cannot join channel (+i)"));
+            continue;
+        }
+
+        // Gestion mode +k : clé requise
+        if (channel.getModeK()) {
+            if (key.empty() || key != channel.getPass()) {
+                sendToClient(client, buildErrorString(475, chan + " :Cannot join channel (+k) - wrong key"));
+                continue;
+            }
+        }
+
+		if(channel.getModeL())
+		{
+			if(channel.getChannelsClients().size() >= (size_t)channel.getUserLimit())
+			{
+				sendToClient(client, buildErrorString(471, chan + " :Cannot join channel (+l) - limit's already reached"));
+				continue;
+			}
+		}
+
+        if (channel.hasClient(client.getFd())) {
+            // Déjà présent, ignorer sans erreur
+            continue;
+        }
+
+        // Ajouter client au channel
+        channel.addClient(&client);
+
+        // Notifier tous les membres du channel du JOIN
+        std::string joinMsg = ":" + client.getPrefix() + " JOIN " + chan;
+        channel.broadcast(joinMsg);
+
+        // TODO : envoyer topic et liste utilisateurs si besoin
     }
-
-    Channel &channel = it->second;
-
-    // Mode +i : accès sur invitation uniquement
-    if (channel.getModeI() && channel.getAuthorizedClients().find(client.getFd()) == channel.getAuthorizedClients().end()) {
-        sendToClient(client, buildErrorString(473, channel.getName() + " :Cannot join channel (+i)"));
-        return;
-    }
-
-    if (channel.hasClient(client.getFd())) {
-        return; // déjà présent
-    }
-
-    channel.addClient(&client);
-
-    // Notification aux autres clients
-    std::string joinMsg = ":" + client.getPrefix() + " JOIN " + chanName;
-    channel.broadcast(joinMsg);
-
-    // Si tu veux, tu peux déjà envoyer le topic/liste utilisateurs ici
 }
+
+
+
+
+// void Server::handleJOIN(Client& client, std::string& arg)
+// {
+// 	std::cout << "Received JOIN command from client " << client.getNickname() << " with arg: " << arg << std::endl;
+//     if (!client.isRegistered()) {
+//         sendToClient(client, buildErrorString(451, "JOIN :You have not registered"));
+//         return;
+//     }
+
+//     if (arg.empty()) {
+//         sendToClient(client, buildErrorString(461, "JOIN :Not enough parameters"));
+//         return;
+//     }
+
+//     // Extraire uniquement le premier mot avant un espace
+//     std::string chanName = arg.substr(0, arg.find(' '));
+
+//     // Vérification syntaxe RFC 2812
+//     if (chanName[0] != '#') {
+//         sendToClient(client, buildErrorString(476, chanName + " :Invalid channel name"));
+//         return;
+//     }
+//     if (chanName.size() > 50) {
+//         sendToClient(client, buildErrorString(476, chanName + " :Channel name too long"));
+//         return;
+//     }
+//     for (size_t i = 0; i < chanName.size(); ++i) {
+//         char c = chanName[i];
+//         if (c == ' ' || c == ',' || c == ':' || c == 7) { // 7 = ^G (Bell)
+//             sendToClient(client, buildErrorString(476, chanName + " :Invalid channel name"));
+//             return;
+//         }
+//     }
+
+//     // Chercher ou créer le channel
+//     std::map<std::string, Channel>::iterator it = _channels.find(chanName);
+//     if (it == _channels.end()) {
+//         _channels.insert(std::make_pair(chanName, Channel(chanName, this)));
+//         it = _channels.find(chanName);
+//         it->second.addOperators(client.getFd());
+//     }
+
+//     Channel &channel = it->second;
+
+//     // Mode +i : accès sur invitation uniquement
+//     if (channel.getModeI() && channel.getAuthorizedClients().find(client.getFd()) == channel.getAuthorizedClients().end()) {
+//         sendToClient(client, buildErrorString(473, channel.getName() + " :Cannot join channel (+i)"));
+//         return;
+//     }
+
+//     if (channel.hasClient(client.getFd())) {
+//         return; // déjà présent
+//     }
+
+//     channel.addClient(&client);
+
+//     // Notification aux autres clients
+//     std::string joinMsg = ":" + client.getPrefix() + " JOIN " + chanName;
+//     channel.broadcast(joinMsg);
+
+//     // Si tu veux, tu peux déjà envoyer le topic/liste utilisateurs ici
+// }
 
 
 void Server::handlePRIVMSG(Client& sender, std::string& msg)

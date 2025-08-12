@@ -6,7 +6,7 @@
 /*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/09 15:28:05 by ylenoel           #+#    #+#             */
-/*   Updated: 2025/08/08 16:29:01 by ylenoel          ###   ########.fr       */
+/*   Updated: 2025/08/12 11:48:04 by ylenoel          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -128,6 +128,7 @@ class Server
 		const ChannelMap getChannels() const;
 		void printConnectedClients(const Server& server);
 		void printConnectedChannels(const Server& server);
+		void processClientData(int client_fd);
 		void removeClientFromAllChannels(int fd);
 		void removeClientFromAllChannelsWithNotice(int fd, const std::string& notice);
 };

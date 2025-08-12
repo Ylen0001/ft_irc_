@@ -6,7 +6,7 @@
 /*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/09 14:03:23 by ylenoel           #+#    #+#             */
-/*   Updated: 2025/07/18 13:25:16 by ylenoel          ###   ########.fr       */
+/*   Updated: 2025/08/12 15:07:13 by ylenoel          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -33,6 +33,7 @@ int main(int argc, char* argv[])
 	}
 
 	try {
+		signal(SIGPIPE, SIG_IGN);
 		signal(SIGINT, signalHandler); // Capture CTRL+C
 		Server test(atoi(argv[0]), argv[1]);
 		test.run();

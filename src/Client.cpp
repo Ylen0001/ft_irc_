@@ -6,7 +6,7 @@
 /*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/10 15:33:22 by ylenoel           #+#    #+#             */
-/*   Updated: 2025/08/05 17:31:06 by ylenoel          ###   ########.fr       */
+/*   Updated: 2025/08/12 13:20:20 by ylenoel          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -43,6 +43,8 @@ void Client::setHasPassword(bool val) {_hasPassword = val;}
 
 void Client::appendToBuffer(const std::string& data) {_buffer += data;}
 std::string& Client::getBuffer() {return _buffer;}
+
+void Client::clearBuffer() { _buffer.clear(); }
 
 std::string Client::getPrefix() const
 {

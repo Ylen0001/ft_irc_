@@ -6,7 +6,7 @@
 /*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/18 14:30:04 by ylenoel           #+#    #+#             */
-/*   Updated: 2025/08/05 15:16:22 by ylenoel          ###   ########.fr       */
+/*   Updated: 2025/08/12 16:29:28 by ylenoel          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -35,6 +35,7 @@ class Channel
 		bool _modeL;						// Limit mode
 		std::string _pass;					// mdp du channel (Si mode -k)
 		int	_userLimit;						// Limite de clients max autorisé dans le channel
+		// int _currentUsers;
 		std::set<int> _operators;			// FD des operators
 		std::set<int> _authorizedClients;	// Liste d'invités autorisés. (Selon le mode du channel)
 	public:
@@ -67,6 +68,8 @@ class Channel
 		void setPass(const std::string& pass);
 		const int& getUserLimit() const;
 		void setUserLimit(const int& limit);
+		// const int& getCurrentUsers() const;
+		// void setC(const int& limit);
 
 		void setInviteOnly(bool val);
 		void setTopicRestricted(bool val);

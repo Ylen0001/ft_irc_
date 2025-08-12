@@ -6,7 +6,7 @@
 /*   By: ylenoel <ylenoel@student.42.fr>            +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/07/09 15:45:29 by ylenoel           #+#    #+#             */
-/*   Updated: 2025/08/12 11:03:11 by ylenoel          ###   ########.fr       */
+/*   Updated: 2025/08/12 16:24:33 by ylenoel          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -155,59 +155,7 @@ void Server::run()
 				--i;
 				continue;
 			}
-
-			int client_fd = _pollfds[i].fd;
-			char buffer[1024];
-			std::memset(buffer, 0, sizeof(buffer)); // C++98 style
-
-			int bytes = recv(client_fd, buffer, sizeof(buffer), 0);
-			if (bytes <= 0) // Si le client n'envoie plus rien, on supprime.
-			{
-				std::cout << "Client disconnected" << std::endl;
-				removeClient(client_fd);
-				--i;
-			}
-			else
-			{
-				ClientMap::iterator it = getClientByFd(client_fd);
-				if (it == _db_clients.end()){
-					std::cerr << "Failed to retrieve client information" << std::endl;
-					continue;
-				}
-				Client& client = it->second;
-				client.appendToBuffer(buffer);
-
-				std::string& fullBuffer = client.getBuffer();
-				size_t pos;
-
-				while ((pos = fullBuffer.find_first_of("\r\n")) != std::string::npos)
-				{
-					std::string line = fullBuffer.substr(0, pos);
-					fullBuffer.erase(0, pos + 1);
-
-					// Si \r\n, alors skip le \n aussi
-					if (!fullBuffer.empty() && fullBuffer[0] == '\n')
-						fullBuffer.erase(0, 1);
-
-					std::cout << "Client sent: " << line << std::endl;
-
-					handleMessage(client, line);
-
-					if (_db_clients.find(client_fd) == _db_clients.end())
-						break;
-				}
-				// Parse toutes les lignes IRC
-				// while ((pos = fullBuffer.find("\r\n")) != std::string::npos)
-				// {
-				// 	std::string line = fullBuffer.substr(0, pos);
-				// 	fullBuffer.erase(0, pos + 2);  // Supprime la ligne + \r\n
-
-				// 	std::cout << "Client sent: " << line << std::endl;
-				// 	handleMessage(client, line);
-				// 	if(_db_clients.find(client_fd) == _db_clients.end())
-				// 		break;
-				// }
-			}
+			processClientData(_pollfds[i].fd);
 
 			_pollfds[i].revents = 0;
 			printConnectedClients(*this);
@@ -220,42 +168,204 @@ void Server::run()
 	close_fds();
 }
 
+void Server::processClientData(int client_fd)
+{
+    char buffer[4096];
+    int bytes = recv(client_fd, buffer, sizeof(buffer), 0);
+
+    if (bytes < 0)
+    {
+        if (errno != EAGAIN && errno != EWOULDBLOCK)
+        {
+            std::cerr << "Recv error on fd " << client_fd << " (" << strerror(errno) << ")\n";
+            removeClient(client_fd);
+        }
+        return;
+    }
+
+    // Récupérer l'itérateur client une fois (si déjà supprimé, on sort)
+    ClientMap::iterator it = getClientByFd(client_fd);
+    if (it == _db_clients.end())
+        return;
+    Client &client = it->second;
+
+    if (bytes == 0)
+    {
+        // EOF: le client a fermé son flux d'écriture.
+        // Traiter d'abord toutes les lignes complètes présentes dans le buffer.
+        std::string &buf = client.getBuffer();
+        // size_t pos;
+        while (true)
+        {
+            size_t pos_rn = buf.find("\r\n");
+            size_t pos_n  = buf.find('\n');
+            size_t use_pos;
+            size_t delim_len;
+
+            if (pos_rn != std::string::npos && (pos_n == std::string::npos || pos_rn <= pos_n))
+            {
+                use_pos = pos_rn; delim_len = 2;
+            }
+            else if (pos_n != std::string::npos)
+            {
+                use_pos = pos_n; delim_len = 1;
+            }
+            else
+                break;
+
+            std::string line = buf.substr(0, use_pos);
+            buf.erase(0, use_pos + delim_len);
+
+            if (!line.empty())
+            {
+                std::cout << "Client sent (on EOF processing): " << line << std::endl;
+                handleMessage(client, line);
+                if (_db_clients.find(client_fd) == _db_clients.end()) // handleMessage a pu supprimer client
+                    return;
+            }
+        }
+
+        // Optionnel : si le buffer contient encore des données partielles sans CR/LF,
+        // on peut décider de les traiter comme "dernière ligne" avant de fermer.
+        // Selon ton implémentation, tu peux commenter cette partie si tu préfères ignorer la partie incomplète.
+        if (!client.getBuffer().empty())
+        {
+            std::string line = client.getBuffer();
+            client.clearBuffer();
+            std::cout << "Client sent (final partial on EOF): " << line << std::endl;
+            handleMessage(client, line);
+            if (_db_clients.find(client_fd) == _db_clients.end())
+                return;
+        }
+
+        // Fermer définitivement le client
+        removeClient(client_fd);
+        return;
+    }
+
+    // bytes > 0 : lecture normale -> on ajoute au buffer et on traite toutes les lignes complètes
+    client.appendToBuffer(std::string(buffer, bytes));
+    std::string &fullBuffer = client.getBuffer();
+
+    while (true)
+    {
+        size_t pos_rn = fullBuffer.find("\r\n");
+        size_t pos_n  = fullBuffer.find('\n');
+        size_t use_pos;
+        size_t delim_len;
+
+        if (pos_rn != std::string::npos && (pos_n == std::string::npos || pos_rn <= pos_n))
+        {
+            use_pos = pos_rn; delim_len = 2;
+        }
+        else if (pos_n != std::string::npos)
+        {
+            use_pos = pos_n; delim_len = 1;
+        }
+        else
+        {
+            // pas de ligne complète restant -> on attend la suite
+            break;
+        }
+
+        std::string line = fullBuffer.substr(0, use_pos);
+        fullBuffer.erase(0, use_pos + delim_len);
+
+        if (!line.empty())
+        {
+            std::cout << "Client sent: " << line << std::endl;
+            handleMessage(client, line);
+
+            // handleMessage peut supprimer le client (QUIT, KILL, ...). Si supprimé, on stoppe.
+            if (_db_clients.find(client_fd) == _db_clients.end())
+                return;
+        }
+    }
+}
+
+
 
 //This function returns a boolean but this value is never checked ? is it usefull ?
 //Would it be better to throw an error ? Do we care about the send function failing ?
 
 bool Server::sendToClient(const Client &client, const std::string &msg)
 {
-	int fd = client.getFd();
+    int fd = client.getFd();
 
-	// Vérifie si le client est encore valide dans la base
-	if (_db_clients.find(fd) == _db_clients.end()) {
-		std::cerr << "[Warning] Tried to send to non-existent client (fd = " << fd << ")" << std::endl;
-		return false;
-	}
+    if (_db_clients.find(fd) == _db_clients.end()) {
+        std::cerr << "[Warning] Tried to send to non-existent client (fd = " << fd << ")" << std::endl;
+        return false;
+    }
 
-	size_t totalSent = 0;
-	size_t toSend = msg.length();
+    size_t totalSent = 0;
+    size_t toSend = msg.length();
 
-	while (totalSent < toSend)
-	{
-		std::cout << "[sendToClient] Sending to fd " << fd << ": " << msg << std::endl;
-		ssize_t sent = send(fd, msg.c_str() + totalSent, toSend - totalSent, 0);
-		if (sent < 0)
-		{
-			std::cerr << "[Error] Failed to send to client " << fd
-					  << ": " << strerror(errno) << std::endl;
+    while (totalSent < toSend)
+    {
+        std::cout << "[sendToClient] Sending to fd " << fd << ": " << msg.substr(totalSent) << std::endl;
 
-			// Supprime proprement le client pour éviter d'essayer de lui reparler
-			removeClient(fd);
-			return false;
-		}
-		else
-			    std::cout << "[sendToClient] Sent " << sent << " bytes" << std::endl;
-		totalSent += sent;
-	}
-	return true;
+        ssize_t sent = send(fd, msg.c_str() + totalSent, toSend - totalSent, 0);
+        if (sent < 0)
+        {
+            int err = errno;
+            std::cerr << "[Error] Failed to send to client " << fd
+                      << ": " << strerror(err) << std::endl;
+
+            if (err == EPIPE || err == ECONNRESET) {
+                std::cerr << "[Info] Client " << fd << " disconnected (broken pipe or reset)." << std::endl;
+                removeClient(fd);  // Ferme proprement la connexion
+            }
+            // Ici, on retourne false quel que soit l'erreur pour que l'appelant sache qu'il y a eu un problème
+            return false;
+        }
+        else if (sent == 0)
+        {
+            std::cerr << "[Warning] send() returned 0, client might be disconnected (fd = " << fd << ")" << std::endl;
+            removeClient(fd);
+            return false;
+        }
+        else
+        {
+            std::cout << "[sendToClient] Sent " << sent << " bytes" << std::endl;
+            totalSent += sent;
+        }
+    }
+    return true;
 }
+
+
+// bool Server::sendToClient(const Client &client, const std::string &msg)
+// {
+// 	int fd = client.getFd();
+
+// 	// Vérifie si le client est encore valide dans la base
+// 	if (_db_clients.find(fd) == _db_clients.end()) {
+// 		std::cerr << "[Warning] Tried to send to non-existent client (fd = " << fd << ")" << std::endl;
+// 		return false;
+// 	}
+
+// 	size_t totalSent = 0;
+// 	size_t toSend = msg.length();
+
+// 	while (totalSent < toSend)
+// 	{
+// 		std::cout << "[sendToClient] Sending to fd " << fd << ": " << msg << std::endl;
+// 		ssize_t sent = send(fd, msg.c_str() + totalSent, toSend - totalSent, 0);
+// 		if (sent < 0)
+// 		{
+// 			std::cerr << "[Error] Failed to send to client " << fd
+// 					  << ": " << strerror(errno) << std::endl;
+
+// 			// Supprime proprement le client pour éviter d'essayer de lui reparler
+// 			removeClient(fd);
+// 			return false;
+// 		}
+// 		else
+// 			    std::cout << "[sendToClient] Sent " << sent << " bytes" << std::endl;
+// 		totalSent += sent;
+// 	}
+// 	return true;
+// }
 
 void Server::setNonBlocking(int fd) {
 	int flags = fcntl(fd, F_GETFL, 0);
@@ -500,7 +610,12 @@ void Server::printConnectedChannels(const Server& server)
 		cout << C_WARM_ORANGE"Name: " << it->first << "\n";
 		cout << C_WARM_ORANGE << it->second << C_RESET << endl;
 		cout << C_WARM_ORANGE << "Topic :" << it->second.getTopic() << C_RESET << endl;
-		cout << C_WARM_ORANGE << "Modes : +i = " << it->second.getModeI() << " +t = " << it->second.getModeT() << endl;
+		cout << C_WARM_ORANGE << "Modes : +i = " << it->second.getModeI() << " | +t = " << it->second.getModeT() << 
+			" | +k = " << it->second.getModeK() << " | +l = " << it->second.getModeL() << endl;
+		if(it->second.getModeK())
+			cout << C_RED "Password : " << it->second.getPass() << C_RESET << endl;
+		if(it->second.getModeL())
+			cout << C_RED "User Limit : " << it->second.getUserLimit() << C_RESET << endl;
 	}
 	
 }

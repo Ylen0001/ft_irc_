@@ -98,4 +98,9 @@ POUR LA PROCHAINE SESSION :
 08/07 :
 
 - Vérification de synthaxe de NickName avec isValidNickname().
--
+
+12/08 : 
+
+- Refacto de Run / Ajout de ProcessClientData pour gestion des commandes partiels
+- Ajout d'un script test_partial.py pour tester commandes partielles.
+- Modif de HandleQUIT pour broadcast PART avant QUIT dans le cas où le client fait partie d'un channel.
