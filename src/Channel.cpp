@@ -14,7 +14,7 @@
 #include "../include/Server.hpp"
 #include "../include/colors.hpp"
 
-Channel::Channel(const std::string& name, Server* server) : _name(name), _clients(), _server(server), _modeI(false), _modeT(false) {}
+Channel::Channel(const std::string& name, Server* server) : _name(name), _clients(), _server(server), _modeI(false), _modeT(false), _modeK(false), _modeL(false) {}
 
 Channel::~Channel(){}
 

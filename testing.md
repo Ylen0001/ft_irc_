@@ -49,10 +49,21 @@
 - OK : JOIN #toolongchannelname (476)
 - OK : JOIN #invalidchar (476)
 - OK : JOIN #42 :Topic
+- OK : JOIN #42,#42   
 - === MODES RELATED TESTS ===
 - OK : (+i) Client essaie de join un channel auquel il n'est pas invité (473)
 - OK : (+i) Client join un channel où il est invité
 - OK : (+l) Client join un channel dont le nombre d'utilisateurs max est déjà atteint (471)
 - OK : (+k) Client join avec un mauvais mot de passe / sans mot de passe (475)
-- BUG sur cette ligne, à vérifier : JOIN #44 :BOOOUM
-  :Server ft_irc 475 * :#44 :Cannot join channel (+k) - wrong key
+- OK : (+k) Client join avec bon mdp.
+- OK : (+l) Client join alors que la limite est déjà atteinte (471)
+
+### PART
+
+- OK : PART #42 si dans le channel
+- OK : PART #nonexistantchannel (403)
+- OK : PART #42 (Pas dans le channel, mais existant) (442)
+- OK : PART (461)
+- NOT OK : PART #42,#43
+- OK : PART #42 :Bye everyone 
+- 
